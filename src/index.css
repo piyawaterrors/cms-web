@@ -1,0 +1,24 @@
+@import "tailwindcss";
+
+:root {
+  --primary: #003527;
+  --text-primary: #111111;
+  --text-secondary: #444444;
+  --text-muted: #777777;
+  --danger: #ba1a1a;
+  --border: #d1d5db;
+  --surface: #fcfdfa;
+}
+
+body {
+  color: var(--text-primary);
+  background-color: #f8faf6;
+}
+
+/* h1, h2, h3, h4, h5, h6 {
+  color: var(--text-primary);
+} */
+
+button {
+  cursor: pointer;
+}
