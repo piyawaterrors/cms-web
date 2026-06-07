@@ -78,8 +78,8 @@ const SocietyConfig = () => {
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-[#111]">ตั้งค่าข้อมูลสมาคม</h1>
-          <p className="text-sm text-[#555]">
+          <h1 className="text-3xl font-bold text-[#111]">ตั้งค่าข้อมูลสมาคม</h1>
+          <p className="text-base text-[#555]">
             จัดการข้อมูลพื้นฐานและรายชื่อคณะกรรมการของสมาคม
           </p>
         </div>
@@ -105,8 +105,7 @@ const SocietyConfig = () => {
         {/* Left Column: Basic Info */}
         <div className="md:col-span-2 space-y-6">
           <div className="bg-white p-6 rounded-lg border border-[#eceeeb] space-y-4">
-            <div className="flex items-center gap-2 text-[#003527] font-semibold border-b pb-2">
-              <Info size={18} />
+            <div className="flex items-center gap-2 text-[#003527] font-semibold border-b border-gray-200 pb-2">
               ข้อมูลทั่วไป
             </div>
 
@@ -169,8 +168,7 @@ const SocietyConfig = () => {
         {/* Right Column: Contact Info */}
         <div className="space-y-6">
           <div className="bg-white p-6 rounded-lg border border-[#eceeeb] space-y-4">
-            <div className="flex items-center gap-2 text-[#003527] font-semibold border-b pb-2">
-              <MapPin size={18} />
+            <div className="flex items-center gap-2 text-[#003527] font-semibold border-b border-gray-200 pb-2">
               ข้อมูลติดต่อ
             </div>
 
@@ -187,21 +185,20 @@ const SocietyConfig = () => {
             </div>
 
             <div className="space-y-2">
-              <Label className="flex items-center gap-2">
-                เบอร์โทรศัพท์
-              </Label>
+              <Label className="flex items-center gap-2">เบอร์โทรศัพท์</Label>
               <Input
                 value={formData.phone}
                 onChange={(e) =>
                   setFormData({ ...formData, phone: e.target.value })
                 }
-                placeholder="02-XXX-XXXX"
+                maxLength={10}
+                placeholder="0XXXXXXXXX"
                 className="h-11"
               />
             </div>
           </div>
 
-          <div className="bg-emerald-50 p-4 rounded-xl border border-emerald-100 flex gap-3">
+          <div className="bg-emerald-50 p-4 rounded-lg border border-emerald-100 flex gap-3">
             <div className="bg-white w-8 h-8 rounded-full flex items-center justify-center shrink-0 shadow-sm">
               <Save size={16} className="text-emerald-600" />
             </div>

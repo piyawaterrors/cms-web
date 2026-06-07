@@ -1,5 +1,9 @@
 @import "tailwindcss";
 
+html {
+  font-size: 18px;
+}
+
 :root {
   --primary: #003527;
   --text-primary: #111111;
@@ -21,4 +25,35 @@ body {
 
 button {
   cursor: pointer;
+}
+
+/* Hide default calendar and clock picker indicators in Chrome/Edge/Safari */
+input[type="time"]::-webkit-calendar-picker-indicator,
+input[type="date"]::-webkit-calendar-picker-indicator {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 2.5rem;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+}
+
+/* Custom Scrollbar for TimePicker Lists */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 5px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 9999px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+.custom-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: #cbd5e1 transparent;
 }

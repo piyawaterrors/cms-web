@@ -22,6 +22,7 @@ import {
   Phone,
   MapPin,
   Repeat,
+  Mail,
 } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Get, Post, Update, Delete } from "@/services/https";
@@ -32,6 +33,7 @@ import HistoryItem from "@/components/ui/HistoryItem";
 import Select from "@/components/ui/Select";
 import Textarea from "@/components/ui/Textarea";
 import Label from "@/components/ui/Label";
+import DatePicker from "@/components/ui/DatePicker";
 
 const GRID_SIZE = 50;
 const DEFAULT_PLOT_SIZE = 1;
@@ -379,14 +381,14 @@ const Plots = () => {
     //         </div>
     //       </div>
 
-    <div className="p-6 max-w-7xl mx-auto space-y-6">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-4 lg:p-6 z-20">
+    <div className="p-6 space-y-6">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 z-20">
         <div className="flex items-center gap-4">
           <div>
-            <h1 className="text-2xl font-bold text-[#111]">
+            <h1 className="text-3xl font-bold text-[#111]">
               ผังหลุม (Visual Map)
             </h1>
-            <p className="text-sm text-[#555]">
+            <p className="text-base text-[#555]">
               จัดการและตรวจสอบสถานะหลุมบนแผนที่
             </p>
           </div>
@@ -394,16 +396,15 @@ const Plots = () => {
 
         <div className="flex flex-wrap items-center gap-3">
           {/* Date Selector (Time Machine) */}
-          <div className="flex items-center gap-2 bg-[#f1f3f1] px-3 py-1.5 rounded-md h-[42px] border border-[#eceeeb]/50">
-            <HistoryIcon size={16} className="text-[#003527]" />
-            <span className="text-[10px] md:text-xs font-bold text-[#555] whitespace-nowrap uppercase tracking-wider">
+          <div className="flex items-center gap-2 px-3 py-1.5 rounded-md h-[42px]">
+            <HistoryIcon size={16} className="text-[#003527] shrink-0" />
+            <span className="text-xs md:text-sm font-bold text-[#555] whitespace-nowrap uppercase tracking-wider shrink-0">
               ตรวจสอบ ณ วันที่:
             </span>
-            <input
-              type="date"
+            <DatePicker
               value={viewDate}
               onChange={(e) => setViewDate(e.target.value)}
-              className="text-xs md:text-sm font-bold text-[#111] outline-none border-none focus:ring-0 bg-transparent cursor-pointer"
+              className="w-[180px] text-[#111] h-[42px]"
             />
           </div>
 
@@ -414,20 +415,20 @@ const Plots = () => {
               label: z === "all" ? "ทุกซอย" : `ซอย ${z}`,
               value: z,
             }))}
-            className="w-full md:w-[180px] text-sm h-[42px]"
+            className="w-full md:w-[200px] text-base h-[42px]"
           />
 
           <div className="flex bg-[#f1f3f1] p-1 gap-1 rounded-md w-full md:w-auto h-[42px]">
             <button
               onClick={() => setMode("view")}
-              className={`flex-1 md:flex-none flex items-center justify-center gap-2 px-4 py-1.5 rounded-md transition-all text-sm ${mode === "view" ? "bg-white text-[#003527] font-semibold" : "text-[#555] hover:bg-black/5"}`}
+              className={`flex-1 md:flex-none flex items-center justify-center gap-2 px-4 py-1.5 rounded-md transition-all text-base ${mode === "view" ? "bg-white text-[#003527] font-semibold" : "text-[#555] hover:bg-black/5"}`}
             >
               <MousePointer2 size={16} />
               <span>มุมมอง</span>
             </button>
             <button
               onClick={() => setMode("edit")}
-              className={`flex-1 md:flex-none flex items-center justify-center gap-2 px-4 py-1.5 rounded-md transition-all text-sm ${mode === "edit" ? "bg-[#003527] text-white font-semibold" : "text-[#555] hover:bg-black/5"}`}
+              className={`flex-1 md:flex-none flex items-center justify-center gap-2 px-4 py-1.5 rounded-md transition-all text-base ${mode === "edit" ? "bg-[#003527] text-white font-semibold" : "text-[#555] hover:bg-black/5"}`}
             >
               <Settings2 size={16} />
               <span>แก้ไข</span>
@@ -471,14 +472,14 @@ const Plots = () => {
         </div>
 
         {/* Legend */}
-        <div className="absolute bottom-6 left-6 z-30 flex flex-col gap-2 bg-white/90 backdrop-blur-md p-3 md:p-4 rounded-xl border border-white text-[10px] md:text-xs font-medium text-[#333]">
+        <div className="absolute top-4 left-4 z-30 flex flex-row flex-wrap gap-x-4 gap-y-2 bg-white/90 backdrop-blur-md px-4 py-2.5 rounded-md border border-white text-xs md:text-sm font-semibold text-[#333] shadow-sm max-w-[calc(100%-180px)]">
           {plotStatuses.map((s) => (
             <div key={s.id} className="flex items-center gap-2">
               <div
-                className="w-2.5 h-2.5 md:w-3.5 md:h-3.5 rounded-sm border border-black/10"
+                className="w-3 h-3 md:w-3.5 md:h-3.5 rounded-sm border border-black/10"
                 style={{ backgroundColor: s.color }}
               />
-              <span className="capitalize truncate">
+              <span className="capitalize whitespace-nowrap">
                 {s.label} ({s.key})
               </span>
             </div>
@@ -555,7 +556,7 @@ const Plots = () => {
                   align="center"
                   verticalAlign="middle"
                   fill="white"
-                  fontSize={10}
+                  fontSize={13}
                   fontStyle="bold"
                   listening={false}
                 />
@@ -671,7 +672,7 @@ const Plots = () => {
                 </div>
               </div>
               {plotForm.id && (
-                <div className="p-3 bg-gray-50 rounded-lg border border-gray-100">
+                <div className="p-3 bg-gray-50 rounded-lg border border-gray-200">
                   <p className="text-[10px] text-[#777] uppercase font-bold tracking-wider mb-1">
                     สถานะปัจจุบัน
                   </p>
@@ -731,7 +732,7 @@ const Plots = () => {
       {showRelocationModal && (
         <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
           <div className="bg-white w-full max-w-md rounded-xl overflow-hidden border border-[#eceeeb]">
-            <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-[#003527] text-white">
+            <div className="p-6 border-b border-gray-200 flex justify-between items-center bg-[#003527] text-white">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 bg-white/10 rounded-md flex items-center justify-center text-white">
                   <Repeat size={20} />
@@ -753,7 +754,7 @@ const Plots = () => {
 
             <div className="p-6 space-y-6">
               {/* Deceased Info */}
-              <div className="p-4 bg-gray-50 rounded-lg border border-gray-100">
+              <div className="p-4 bg-gray-50 rounded-lg border border-gray-200">
                 <p className="text-[10px] text-[#777] uppercase font-bold tracking-wider mb-2">
                   ผู้ล่วงลับที่ต้องการย้าย
                 </p>
@@ -845,16 +846,16 @@ const QuickViewModal = ({ id, onClose, onEdit, onRelocate }) => {
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/30 backdrop-blur-[2px] p-4">
       <div className="bg-white w-full max-w-2xl max-h-[95vh] rounded-lg flex flex-col overflow-hidden">
-        <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-[#003527] text-white">
+        <div className="p-6 border-b border-gray-200 flex justify-between items-center bg-[#003527] text-white">
           <div className="flex items-center gap-4">
-            <div className="w-10 h-10 bg-white/10 rounded-md flex items-center justify-center text-white">
-              <InfoIcon size={24} />
+            <div className="w-12 h-12 bg-white/10 rounded-md flex items-center justify-center text-white">
+              <InfoIcon size={26} />
             </div>
             <div>
-              <h3 className="text-xl font-bold">
+              <h3 className="text-2xl font-bold">
                 หลุมหมายเลข {plot?.plotNumber}
               </h3>
-              <p className="text-xs opacity-70">
+              <p className="text-sm opacity-70">
                 โซน: {plot?.zone} | สถานะ:{" "}
                 <span>
                   {plot?.status === "available"
@@ -876,13 +877,13 @@ const QuickViewModal = ({ id, onClose, onEdit, onRelocate }) => {
             onClick={onClose}
             className="p-2 hover:bg-white/10 rounded-full transition-colors"
           >
-            <XIcon size={20} />
+            <XIcon size={22} />
           </button>
         </div>
-        <div className="flex border-b border-gray-100 px-6 bg-white sticky top-0 z-10">
+        <div className="flex border-b border-gray-200 px-6 bg-white sticky top-0 z-10">
           <button
             onClick={() => setActiveTab("current")}
-            className={`py-4 px-4 text-sm font-bold transition-all border-b-2 ${
+            className={`py-4 px-4 text-base font-bold transition-all border-b-2 ${
               activeTab === "current"
                 ? "border-[#064e3b] text-[#064e3b]"
                 : "border-transparent text-[#555] hover:text-[#111]"
@@ -892,13 +893,13 @@ const QuickViewModal = ({ id, onClose, onEdit, onRelocate }) => {
           </button>
           <button
             onClick={() => setActiveTab("history")}
-            className={`py-4 px-4 text-sm font-bold transition-all border-b-2 ${
+            className={`py-4 px-4 text-base font-bold transition-all border-b-2 ${
               activeTab === "history"
                 ? "border-[#064e3b] text-[#064e3b]"
                 : "border-transparent text-[#555] hover:text-[#111]"
             }`}
           >
-            ประวัติหลุม
+            ประวัติการทำรายการ
           </button>
         </div>
         <div className="flex-1 overflow-y-auto p-6">
@@ -908,22 +909,32 @@ const QuickViewModal = ({ id, onClose, onEdit, onRelocate }) => {
             </div>
           ) : activeTab === "current" ? (
             <div className="space-y-6">
+              {plot?.contracts?.[0]?.contractNumber && (
+                <div className="p-4 bg-[#003527]/5 rounded-md border border-[#003527]/10">
+                  <p className="text-sm font-bold text-[#003527] uppercase tracking-wider mb-1">
+                    หมายเลขสัญญา
+                  </p>
+                  <p className="text-xl font-bold text-[#003527] tracking-wider">
+                    {plot.contracts[0].contractNumber}
+                  </p>
+                </div>
+              )}
               <div className="grid grid-cols-2 gap-4">
                 <div className="p-4 bg-gray-50 rounded-md border border-gray-200">
-                  <p className="text-xs font-bold text-[#777] uppercase tracking-wider mb-1">
+                  <p className="text-sm font-bold text-[#777] uppercase tracking-wider mb-1">
                     วันเริ่มสัญญา
                   </p>
-                  <p className="text-lg">
+                  <p className="text-xl font-bold">
                     {plot?.contracts?.[0]?.startDate
                       ? dayjs(plot.contracts[0].startDate).format("DD/MM/YYYY")
                       : "-"}
                   </p>
                 </div>
                 <div className="p-4 bg-gray-50 rounded-md border border-gray-200">
-                  <p className="text-xs font-bold text-[#777] uppercase tracking-wider mb-1">
+                  <p className="text-sm font-bold text-[#777] uppercase tracking-wider mb-1">
                     วันสิ้นสุดสัญญา
                   </p>
-                  <p className="text-lg">
+                  <p className="text-xl font-bold">
                     {plot?.contracts?.[0]?.endDate
                       ? dayjs(plot.contracts[0].endDate).format("DD/MM/YYYY")
                       : "-"}
@@ -931,39 +942,51 @@ const QuickViewModal = ({ id, onClose, onEdit, onRelocate }) => {
                 </div>
               </div>
               <div className="space-y-3">
-                <h4 className="text-xs font-bold text-gray-900 uppercase tracking-widest border-b border-gray-100 pb-2">
+                <h4 className="text-sm font-bold text-gray-900 uppercase tracking-widest">
                   รายชื่อผู้ติดต่อ
                 </h4>
                 <div className="grid gap-2">
-                  {plot?.members?.map((m, i) => (
-                    <div
-                      key={i}
-                      className="p-4 bg-white rounded-md border border-gray-200"
-                    >
-                      <span className="text-sm font-bold text-gray-900">
-                        {m.fullName}
-                      </span>
-                      <div className="flex items-start gap-4 mt-1 text-sm text-gray-600">
-                        <span className="flex items-center gap-1">
-                          <Phone size={14} className="text-gray-600" />
-                          {m.phone || "N/A"}
+                  {plot?.members?.length > 0 ? (
+                    plot?.members?.map((m, i) => (
+                      <div
+                        key={i}
+                        className="p-4 bg-white rounded-md border border-gray-200"
+                      >
+                        <span className="text-base font-bold text-gray-900">
+                          {m.fullName}
                         </span>
-                        <span className="flex items-start gap-1 min-w-0">
-                          <MapPin
-                            size={14}
-                            className="text-gray-600 shrink-0 mt-0.5"
-                          />
-                          <span className="whitespace-normal break-words">
-                            {m.address || "N/A"}
+                        <div className="flex items-start gap-4 mt-1.5 text-base text-gray-600">
+                          <div className="flex flex-col items-start text-gray-600 gap-1.5">
+                            <span className="flex items-center gap-1.5">
+                              <Phone size={15} className="text-gray-600" />
+                              {m.phone || "N/A"}
+                            </span>
+                            <span className="flex items-center gap-1.5">
+                              <Mail size={15} className="text-gray-600" />
+                              {m.email || "N/A"}
+                            </span>
+                          </div>
+                          <span className="flex items-start gap-1.5 min-w-0">
+                            <MapPin
+                              size={15}
+                              className="text-gray-600 shrink-0 mt-1"
+                            />
+                            <span className="whitespace-normal break-words">
+                              {m.address || "N/A"}
+                            </span>
                           </span>
-                        </span>
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    ))
+                  ) : (
+                    <p className="text-sm text-[#777] py-4 bg-gray-50 rounded-md text-center border border-dashed border-gray-200">
+                      ยังไม่มีรายชื่อผู้ติดต่อ
+                    </p>
+                  )}
                 </div>
               </div>
               <div className="space-y-3">
-                <h4 className="text-xs font-bold text-gray-900 uppercase tracking-widest border-b border-gray-100 pb-2">
+                <h4 className="text-sm font-bold text-gray-900 uppercase tracking-widest">
                   รายชื่อผู้ล่วงลับ
                 </h4>
                 <div className="grid gap-2">
@@ -973,29 +996,47 @@ const QuickViewModal = ({ id, onClose, onEdit, onRelocate }) => {
                         key={o.id}
                         className="p-4 bg-white rounded-md border border-gray-200"
                       >
-                        <div className="flex justify-between items-center">
-                          <p className="text-sm font-bold text-gray-900">
+                        <div className="flex justify-between items-center mb-1">
+                          <p className="text-base font-bold text-gray-900">
                             {o.fullName}
                           </p>
                           <button
                             onClick={() => onRelocate(o, plot)}
-                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-sm border border-[#eceeeb] text-[10px] font-bold text-[#003527] hover:bg-[#003527]/5 transition-all uppercase tracking-wider"
+                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-sm border border-[#eceeeb] text-xs font-bold text-[#003527] hover:bg-[#003527]/5 transition-all uppercase tracking-wider"
                           >
-                            <Repeat size={12} />
+                            <Repeat size={14} />
                             ย้ายหลุม
                           </button>
                         </div>
-                        <div className="flex gap-4 items-center">
-                          <p className="text-sm text-gray-600">
-                            อายุ: {o.age || "N/A"} ปี
-                          </p>
-                          <p className="text-sm text-gray-600">
-                            มรณบัตร: {o.deathCertificateNumber || "N/A"}
-                          </p>
-                          <p className="text-sm text-gray-600">
-                            ประเภทการบรรจุ:{" "}
-                            {o.burialType === "coffin" ? "โลงศพ" : "อัฐิ"}
-                          </p>
+                        <div className="flex items-start gap-4 mt-1.5 text-base text-gray-600">
+                          <div className="flex flex-col items-start text-gray-600 gap-1.5">
+                            <p className="text-base text-gray-600">
+                              อายุ: {o.age || "N/A"} ปี
+                            </p>
+                            <span className="flex items-center gap-1">
+                              มรณบัตร:{" "}
+                              <a
+                                href={o.deathCertificateImage}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="flex items-center hover:underline cursor-pointer"
+                              >
+                                {o.deathCertificateNumber || "N/A"}
+                              </a>
+                            </span>
+                          </div>
+                          <div className="flex flex-col items-start text-gray-600 gap-1.5">
+                            <p className="text-base text-gray-600">
+                              บรรจุเมื่อ:{" "}
+                              {o.burialDate
+                                ? dayjs(o.burialDate).format("DD/MM/YYYY HH:mm")
+                                : "N/A"}
+                            </p>
+                            <p className="text-base text-gray-600">
+                              ประเภทการบรรจุ:{" "}
+                              {o.burialType === "coffin" ? "โลงศพ" : "อัฐิ"}
+                            </p>
+                          </div>
                         </div>
                       </div>
                     ))
@@ -1012,7 +1053,7 @@ const QuickViewModal = ({ id, onClose, onEdit, onRelocate }) => {
               {plot?.logs?.length > 0 ? (
                 plot.logs.map((log) => <HistoryItem key={log.id} log={log} />)
               ) : (
-                <p className="text-sm text-[#999]text-center py-10">
+                <p className="text-sm text-[#777] py-4 bg-gray-50 rounded-md text-center border border-dashed border-gray-200">
                   ยังไม่มีประวัติการทำรายการ
                 </p>
               )}
@@ -1032,8 +1073,8 @@ const QuickViewModal = ({ id, onClose, onEdit, onRelocate }) => {
             onClick={onEdit}
           >
             {plot?.status === "available"
-              ? "สร้างรายการใหม่"
-              : "ดูรายละเอียดแบบเต็ม / แก้ไข"}
+              ? "สร้างสัญญาใหม่"
+              : "ดูรายละเอียด / แก้ไข"}
             <ArrowRight size={16} />
           </Button>
         </div>

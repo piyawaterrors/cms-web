@@ -76,7 +76,8 @@ const MainLayout = () => {
         <nav className="flex-grow mt-6 px-3 space-y-1 overflow-y-auto custom-scrollbar">
           {adminItems.map((item) => {
             const Icon = item.icon;
-            const isActive = location.pathname === item.url;
+            const isActive = location.pathname === item.url || 
+              (item.subUrls && item.subUrls.some(subUrl => location.pathname.startsWith(subUrl)));
 
             return (
               <Link
@@ -98,9 +99,6 @@ const MainLayout = () => {
                 {isSidebarOpen && (
                   <div className="flex-grow flex items-center justify-between">
                     <span className="text-sm font-medium">{item.title}</span>
-                    {isActive && (
-                      <ChevronRight size={14} className="opacity-50" />
-                    )}
                   </div>
                 )}
                 {!isSidebarOpen && (

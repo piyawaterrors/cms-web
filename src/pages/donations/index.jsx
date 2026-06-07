@@ -3,14 +3,10 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import dayjs from "dayjs";
 import { PrintService } from "@/services/print-service";
 import {
-  Search,
   Plus,
   Pencil,
   Trash2,
-  Filter,
   DollarSign,
-  Calendar,
-  FileText,
   X,
   Upload,
   User,
@@ -26,13 +22,24 @@ import Label from "@/components/ui/Label";
 import Pagination from "@/components/ui/Pagination";
 import Autocomplete from "@/components/ui/Autocomplete";
 import Textarea from "@/components/ui/Textarea";
+import DatePicker from "@/components/ui/DatePicker";
+import { compressImage } from "@/utils/imageCompressor";
+
+const formatNumberWithCommas = (val) => {
+  if (val === undefined || val === null || val === "") return "";
+  const clean = val.toString().replace(/,/g, "");
+  const parts = clean.split(".");
+  parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+  return parts.join(".");
+};
 
 const Donations = () => {
   const queryClient = useQueryClient();
   const { addToast } = useToast();
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
-  const [yearFilter, setYearFilter] = useState(""); // เริ่มต้นที่ "ทั้งหมด"
+  const [startYear, setStartYear] = useState(dayjs().year());
+  const [endYear, setEndYear] = useState(dayjs().year());
   const [page, setPage] = useState(1);
   const [limit] = useState(10);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -58,14 +65,13 @@ const Donations = () => {
     notes: "",
   });
   const [selectedFile, setSelectedFile] = useState(null);
-  const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = React.useRef(null);
 
   const yearOptions = [
     { label: "ทั้งหมด", value: "" },
     ...Array.from({ length: 61 }, (_, i) => {
       const year = dayjs().year() + 30 - i;
-      return { label: `ปี ${year}`, value: year };
+      return { label: `${year + 543}`, value: year };
     }),
   ];
 
@@ -81,11 +87,12 @@ const Donations = () => {
   ];
 
   const { data, isLoading } = useQuery({
-    queryKey: ["donations", debouncedSearch, yearFilter, page, limit],
+    queryKey: ["donations", debouncedSearch, startYear, endYear, page, limit],
     queryFn: async () => {
       const params = new URLSearchParams();
       if (debouncedSearch) params.append("search", debouncedSearch);
-      if (yearFilter) params.append("year", yearFilter);
+      if (startYear) params.append("startYear", startYear);
+      if (endYear) params.append("endYear", endYear);
       params.append("page", page);
       params.append("limit", limit);
       const res = await Get(`/donations?${params.toString()}`);
@@ -94,11 +101,12 @@ const Donations = () => {
   });
 
   const { data: summaryData } = useQuery({
-    queryKey: ["donation-summary", yearFilter],
+    queryKey: ["donation-summary", startYear, endYear],
     queryFn: async () => {
-      const res = await Get(
-        `/donations/summary${yearFilter ? `?year=${yearFilter}` : ""}`,
-      );
+      const params = new URLSearchParams();
+      if (startYear) params.append("startYear", startYear);
+      if (endYear) params.append("endYear", endYear);
+      const res = await Get(`/donations/summary?${params.toString()}`);
       return res.data;
     },
   });
@@ -165,7 +173,7 @@ const Donations = () => {
         donorName: "",
         amount: "",
         donationDate: dayjs().format("YYYY-MM-DD"),
-        donationYear: yearFilter || dayjs().year(),
+        donationYear: startYear || dayjs().year(),
         type: "maintenance",
         paymentMethod: "transfer",
         slipUrl: "",
@@ -204,33 +212,28 @@ const Donations = () => {
     }
   };
 
-  const handleFileUpload = (e) => {
+  const handleFileUpload = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
 
-    // ตรวจสอบขนาดไฟล์ไม่เกิน 2MB
-    if (file.size > 2 * 1024 * 1024) {
-      addToast("ขนาดไฟล์ต้องไม่เกิน 2MB", "error");
-      e.target.value = null;
-      return;
+    try {
+      const compressedFile = await compressImage(file);
+      setSelectedFile(compressedFile);
+      setFormData((prev) => ({ ...prev, slipUrl: compressedFile.name }));
+    } catch (err) {
+      addToast("เกิดข้อผิดพลาดในการประมวลผลรูปภาพ", "error");
     }
-
-    // เก็บไฟล์ไว้ใน State เพื่อส่งพร้อม Form
-    setSelectedFile(file);
-
-    // สร้าง Temporary URL เพื่อแสดงชื่อไฟล์หรือ Preview (ถ้าต้องการ)
-    setFormData((prev) => ({ ...prev, slipUrl: file.name }));
   };
 
   return (
-    <div className="p-6 max-w-7xl mx-auto space-y-6">
+    <div className="p-6 mx-auto space-y-6">
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-[#111]">
+          <h1 className="text-3xl font-bold text-[#111]">
             ระบบจัดการเงินบริจาค
           </h1>
-          <p className="text-sm text-[#555]">
+          <p className="text-base text-[#555]">
             บันทึกและตรวจสอบข้อมูลการบริจาคประจำปี
           </p>
         </div>
@@ -247,16 +250,21 @@ const Donations = () => {
             <div className="flex items-center gap-2 opacity-80">
               <DollarSign size={20} />
               <span className="text-sm font-medium">
-                ยอดบริจาครวม{yearFilter ? `ปี ${yearFilter}` : "ทุกปี"}
+                ยอดบริจาครวม
+                {startYear && endYear
+                  ? ` ช่วงปี ${startYear + 543} - ${endYear + 543}`
+                  : startYear
+                    ? ` ตั้งแต่ปี ${startYear + 543}`
+                    : endYear
+                      ? ` จนถึงปี ${endYear + 543}`
+                      : " ทุกปี"}
               </span>
             </div>
             <div className="text-3xl font-bold">
               ฿{Number(summaryData?.total || 0).toLocaleString()}
             </div>
             <p className="text-xs opacity-60">
-              {yearFilter
-                ? `สรุปรายรับจากการบริจาคทั้งหมดในรอบปีที่เลือก`
-                : `สรุปรายรับจากการบริจาคทั้งหมดทุกปี`}
+              สรุปรายรับจากการบริจาคตามช่วงเวลาที่เลือก
             </p>
           </div>
         </div>
@@ -270,13 +278,32 @@ const Donations = () => {
                 onChange={(e) => setSearch(e.target.value)}
               />
             </div>
-            <div className="w-full md:w-64">
-              <Select
-                className="h-11"
-                value={yearFilter}
-                onChange={(val) => setYearFilter(val ? Number(val) : "")}
-                options={yearOptions}
-              />
+            <div className="flex gap-2 items-center">
+              <div className="w-full md:w-40">
+                <Select
+                  className="h-11"
+                  value={startYear}
+                  onChange={(val) => {
+                    setStartYear(val ? Number(val) : "");
+                    setPage(1);
+                  }}
+                  options={yearOptions}
+                  placeholder="ตั้งแต่ปี"
+                />
+              </div>
+              <span className="text-gray-400">ถึง</span>
+              <div className="w-full md:w-40">
+                <Select
+                  className="h-11"
+                  value={endYear}
+                  onChange={(val) => {
+                    setEndYear(val ? Number(val) : "");
+                    setPage(1);
+                  }}
+                  options={yearOptions}
+                  placeholder="ถึงปี"
+                />
+              </div>
             </div>
           </div>
         </div>
@@ -363,7 +390,9 @@ const Donations = () => {
                     </td>
                     <td className="px-6 py-4 text-center">
                       <span className="text-sm font-medium text-gray-600">
-                        {donation.donationYear}
+                        {donation.donationYear
+                          ? `${donation.donationYear + 543}`
+                          : "-"}
                       </span>
                     </td>
                     <td className="px-6 py-4 text-right">
@@ -372,7 +401,9 @@ const Donations = () => {
                       </span>
                     </td>
                     <td className="px-6 py-4 text-sm text-gray-600">
-                      {dayjs(donation.donationDate).format("DD/MM/YYYY")}
+                      {dayjs(donation.donationDate)
+                        .add(543, "year")
+                        .format("DD/MM/YYYY")}
                     </td>
                     <td className="px-6 py-4 text-center">
                       {donation.slipUrl ? (
@@ -407,8 +438,9 @@ const Donations = () => {
                           <Pencil size={14} />
                         </Button>
                         <Button
+                          variant="outline"
+                          className="h-8 w-12 p-0 flex items-center justify-center text-xs font-medium border-rose-200 text-rose-600 hover:bg-rose-600 hover:text-white rounded-md"
                           onClick={() => handleDelete(donation.id)}
-                          className="h-8 w-12 text-xs font-medium"
                         >
                           <Trash2 size={14} />
                         </Button>
@@ -446,7 +478,7 @@ const Donations = () => {
       {/* Add/Edit Modal */}
       {isModalOpen && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-white rounded-lg w-full max-w-md overflow-hidden shadow-2xl animate-in zoom-in duration-200">
+          <div className="bg-white rounded-lg w-full max-w-2xl overflow-hidden shadow-2xl animate-in zoom-in duration-200">
             <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-[#003527] text-white">
               <div>
                 <h2 className="text-lg font-bold">
@@ -467,97 +499,117 @@ const Donations = () => {
             </div>
 
             <form onSubmit={handleSubmit} className="p-6 space-y-4">
-              <div className="space-y-1">
-                <Label required>ชื่อผู้บริจาค</Label>
-                <Autocomplete
-                  placeholder="พิมพ์ค้นหาชื่อผู้ติดต่อ/สมาชิก..."
-                  value={formData.donorName}
-                  onChange={(val) =>
-                    setFormData({ ...formData, donorName: val })
-                  }
-                  onSelect={(member) => {
-                    setFormData({
-                      ...formData,
-                      donorName: member.fullName,
-                      notes: member.phone
-                        ? `สมาชิก: ${member.fullName} (โทร: ${member.phone})`
-                        : formData.notes,
-                    });
-                  }}
-                />
-              </div>
-
-              <div className="space-y-1">
-                <Label required>จำนวนเงิน (บาท)</Label>
-                <Input
-                  type="number"
-                  step="0.01"
-                  placeholder="0.00"
-                  value={formData.amount}
-                  onChange={(e) =>
-                    setFormData({ ...formData, amount: e.target.value })
-                  }
-                  required
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1">
-                  <Label required>วันที่บริจาค</Label>
-                  <Input
-                    type="date"
-                    value={formData.donationDate}
-                    onChange={(e) =>
-                      setFormData({ ...formData, donationDate: e.target.value })
-                    }
-                    required
-                  />
-                </div>
-                <div className="space-y-1">
-                  <Label required>บริจาคประจำปี</Label>
-                  <Select
-                    value={formData.donationYear}
-                    onChange={(val) =>
-                      setFormData({ ...formData, donationYear: Number(val) })
-                    }
-                    options={yearOptions}
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-1">
-                <Label required>ประเภทการชำระ</Label>
-                <div className="flex gap-2">
-                  {paymentMethodOptions.map((type) => (
-                    <button
-                      key={type.value}
-                      type="button"
-                      onClick={() =>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Column 1 */}
+                <div className="space-y-4">
+                  <div className="space-y-1">
+                    <Label required>ชื่อผู้บริจาค</Label>
+                    <Autocomplete
+                      placeholder="พิมพ์ค้นหาชื่อผู้ติดต่อ/สมาชิก..."
+                      value={formData.donorName}
+                      onChange={(val) =>
+                        setFormData({ ...formData, donorName: val })
+                      }
+                      onSelect={(member) => {
                         setFormData({
                           ...formData,
-                          paymentMethod: type.value,
+                          donorName: member.fullName,
+                        });
+                      }}
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <Label required>วันที่บริจาค</Label>
+                    <DatePicker
+                      value={formData.donationDate}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          donationDate: e.target.value,
                         })
                       }
-                      className={`flex-1 py-2 px-4 rounded-sm border text-sm font-bold transition-all ${
-                        formData.paymentMethod === type.value
-                          ? "bg-[#003527] text-white border-[#003527]"
-                          : "bg-white text-[#777] border-gray-200 hover:bg-gray-50"
-                      }`}
-                    >
-                      {type.label}
-                    </button>
-                  ))}
+                      required
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <Label required>ประเภทการชำระ</Label>
+                    <div className="flex gap-2">
+                      {paymentMethodOptions.map((type) => (
+                        <button
+                          key={type.value}
+                          type="button"
+                          onClick={() =>
+                            setFormData({
+                              ...formData,
+                              paymentMethod: type.value,
+                            })
+                          }
+                          className={`flex-1 py-2 px-4 rounded-sm border text-sm font-bold transition-all ${
+                            formData.paymentMethod === type.value
+                              ? "bg-[#003527] text-white border-[#003527]"
+                              : "bg-white text-[#777] border-gray-200 hover:bg-gray-50"
+                          }`}
+                        >
+                          {type.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Column 2 */}
+                <div className="space-y-4">
+                  <div className="space-y-1">
+                    <Label required>จำนวนเงิน (บาท)</Label>
+                    <Input
+                      type="text"
+                      placeholder="0.00"
+                      value={formatNumberWithCommas(formData.amount)}
+                      onChange={(e) => {
+                        let clean = e.target.value.replace(/,/g, "");
+                        if (
+                          clean.startsWith("0") &&
+                          clean.length > 1 &&
+                          clean[1] !== "."
+                        ) {
+                          clean = clean.replace(/^0+/, "");
+                          if (clean === "") clean = "0";
+                        }
+                        if (clean === "" || /^\d*\.?\d*$/.test(clean)) {
+                          setFormData({ ...formData, amount: clean });
+                        }
+                      }}
+                      required
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <Label required>บริจาคประจำปี</Label>
+                    <Select
+                      value={formData.donationYear}
+                      onChange={(val) =>
+                        setFormData({ ...formData, donationYear: Number(val) })
+                      }
+                      options={yearOptions}
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <Label required>ประเภทการบริจาค</Label>
+                    <Select
+                      value={formData.type}
+                      onChange={(val) =>
+                        setFormData({ ...formData, type: val })
+                      }
+                      options={donationTypeOptions}
+                    />
+                  </div>
                 </div>
               </div>
 
-              <div className="space-y-1">
-                <Label required>ประเภทการบริจาค</Label>
-                <Select
-                  value={formData.type}
-                  onChange={(val) => setFormData({ ...formData, type: val })}
-                  options={donationTypeOptions}
-                />
-              </div>
-
+              {/* Full Width Fields */}
               <div className="space-y-1">
                 <Label>หมายเหตุ</Label>
                 <Textarea
@@ -566,19 +618,38 @@ const Donations = () => {
                   onChange={(e) =>
                     setFormData({ ...formData, notes: e.target.value })
                   }
-                  rows={3}
+                  rows={2}
                 />
               </div>
 
               <div className="space-y-1">
                 <Label>หลักฐานการโอน (รูปภาพสลิป)</Label>
                 <div className="flex gap-2">
-                  <Input
-                    placeholder="URL รูปภาพสลิปจะปรากฏที่นี่..."
-                    value={formData.slipUrl}
-                    readOnly
-                    className="bg-gray-50"
-                  />
+                  <div className="flex-grow flex items-center min-h-[44px] px-1 overflow-hidden">
+                    {formData.slipUrl ? (
+                      <a
+                        className="text-base font-medium text-[#003527] underline truncate cursor-pointer"
+                        title={decodeURIComponent(
+                          formData.slipUrl.split("/").pop(),
+                        )}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        href={
+                          formData.slipUrl.startsWith("http")
+                            ? formData.slipUrl
+                            : selectedFile
+                              ? URL.createObjectURL(selectedFile)
+                              : "#"
+                        }
+                      >
+                        {decodeURIComponent(formData.slipUrl.split("/").pop())}
+                      </a>
+                    ) : (
+                      <span className="text-sm text-gray-400 italic">
+                        ยังไม่ได้อัปโหลดรูปสลิป...
+                      </span>
+                    )}
+                  </div>
                   <input
                     type="file"
                     ref={fileInputRef}
@@ -586,13 +657,29 @@ const Donations = () => {
                     accept="image/*"
                     onChange={handleFileUpload}
                   />
+                  {formData.slipUrl && (
+                    <a
+                      href={
+                        formData.slipUrl.startsWith("http")
+                          ? formData.slipUrl
+                          : selectedFile
+                            ? URL.createObjectURL(selectedFile)
+                            : "#"
+                      }
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="w-11 h-11 border border-gray-200 flex items-center justify-center rounded-md hover:bg-gray-50 text-blue-600 shrink-0"
+                      title="ดูรูปภาพสลิป"
+                    >
+                      <ImageIcon size={18} />
+                    </a>
+                  )}
                   <div className="shrink-0">
                     <Button
                       type="button"
                       variant="outline"
                       className="w-11 h-11 p-0 flex items-center justify-center border-gray-200"
                       onClick={() => fileInputRef.current?.click()}
-                      loading={isUploading}
                       title="อัปโหลดสลิป"
                     >
                       <Upload size={18} />

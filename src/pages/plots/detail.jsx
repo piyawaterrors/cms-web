@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import dayjs from "dayjs";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -7,14 +7,11 @@ import {
   ChevronDown,
   ArrowLeft,
   History as HistoryIcon,
-  Eye,
-  Info as InfoIcon,
-  Phone,
-  MapPin,
   X as XIcon,
-  ArrowRight,
   Trash2,
   Pencil,
+  Upload,
+  Image as ImageIcon,
 } from "lucide-react";
 import { Get, Post, Update, Delete } from "@/services/https";
 import { useToast } from "@/contexts/ToastContext";
@@ -24,6 +21,10 @@ import Select from "@/components/ui/Select";
 import Textarea from "@/components/ui/Textarea";
 import Label from "@/components/ui/Label";
 import HistoryItem from "@/components/ui/HistoryItem";
+import DatePicker from "@/components/ui/DatePicker";
+import TimePicker from "@/components/ui/TimePicker";
+import DateTimePicker from "@/components/ui/DateTimePicker";
+import { compressImage } from "@/utils/imageCompressor";
 
 const RELATIONSHIP_OPTIONS = [
   { label: "คู่สมรส", value: "คู่สมรส" },
@@ -39,6 +40,14 @@ const BURIAL_TYPE_OPTIONS = [
   { label: "โลงศพ", value: "coffin" },
   { label: "อัฐิ", value: "ashes" },
 ];
+
+const formatNumberWithCommas = (val) => {
+  if (val === undefined || val === null || val === "") return "";
+  const clean = val.toString().replace(/,/g, "");
+  const parts = clean.split(".");
+  parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+  return parts.join(".");
+};
 
 const PlotDetail = () => {
   const { id } = useParams();
@@ -59,12 +68,17 @@ const PlotDetail = () => {
   const [showRenewModal, setShowRenewModal] = useState(false);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [editingPayment, setEditingPayment] = useState(null);
+  const [uploadingCertIndexes, setUploadingCertIndexes] = useState({});
+  const [isUploadingPaymentProof, setIsUploadingPaymentProof] = useState(false);
+  const paymentProofInputRef = useRef(null);
+  const [activeMemberDropdownIdx, setActiveMemberDropdownIdx] = useState(null);
   const [paymentForm, setPaymentForm] = useState({
     amount: "",
     year: dayjs().year(),
     paymentDate: dayjs().format("YYYY-MM-DD"),
     paymentType: "cash",
     notes: "",
+    paymentProofImage: "",
   });
 
   const { data: plot, isLoading } = useQuery({
@@ -74,6 +88,14 @@ const PlotDetail = () => {
       return res.data;
     },
     enabled: !!id,
+  });
+
+  const { data: membersList } = useQuery({
+    queryKey: ["all-members-lookup"],
+    queryFn: async () => {
+      const res = await Get("/members?limit=1000");
+      return res.data?.rows || [];
+    },
   });
 
   const hasActiveContract = plot?.contracts?.some((c) => !c.isArchived);
@@ -92,6 +114,7 @@ const PlotDetail = () => {
         activeContract?.endDate ||
         dayjs(startDate).add(30, "year").format("YYYY-MM-DD");
 
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setBookingForm({
         type,
         booking: { startDate, endDate },
@@ -101,6 +124,7 @@ const PlotDetail = () => {
                 id: o.id,
                 fullName: o.fullName || "",
                 deathCertificateNumber: o.deathCertificateNumber || "",
+                deathCertificateImage: o.deathCertificateImage || "",
                 age: o.age || "",
                 relationship: o.relationship || "",
                 burialDate: o.burialDate || "",
@@ -114,12 +138,83 @@ const PlotDetail = () => {
           id: m.id,
           fullName: m.fullName || "",
           phone: m.phone || "",
+          email: m.email || "",
+          lineId: m.lineId || "",
           isMember: m.isMember || false,
           address: m.address || "",
-        })) || [{ fullName: "", phone: "", isMember: false, address: "" }],
+        })) || [
+          {
+            fullName: "",
+            phone: "",
+            email: "",
+            lineId: "",
+            isMember: false,
+            address: "",
+          },
+        ],
       });
     }
   }, [plot]);
+
+  const handlePaymentProofUpload = async (file) => {
+    setIsUploadingPaymentProof(true);
+    try {
+      const compressedFile = await compressImage(file);
+      const data = new FormData();
+      data.append("file", compressedFile);
+
+      const res = await Post("/plots/upload-payment-proof", data);
+
+      if (res.data && res.data.url) {
+        setPaymentForm((prev) => ({
+          ...prev,
+          paymentProofImage: res.data.url,
+        }));
+        addToast("อัปโหลดหลักฐานการชำระเงินสำเร็จ", "success");
+      } else {
+        throw new Error("Invalid response");
+      }
+    } catch (err) {
+      addToast(
+        err.response?.data?.message || "เกิดข้อผิดพลาดในการอัปโหลดรูปภาพ",
+        "error",
+      );
+    } finally {
+      setIsUploadingPaymentProof(false);
+    }
+  };
+
+  const handleDeceasedCertUpload = async (idx, file) => {
+    if (!file) return;
+
+    setUploadingCertIndexes((prev) => ({ ...prev, [idx]: true }));
+    try {
+      const compressedFile = await compressImage(file);
+      const data = new FormData();
+      data.append("file", compressedFile);
+
+      const res = await Post("/deceaseds/upload-certificate", data);
+
+      if (res.data && res.data.url) {
+        const newList = [...bookingForm.deceaseds];
+        newList[idx].deathCertificateImage = res.data.url;
+        setBookingForm({
+          ...bookingForm,
+          deceaseds: newList,
+        });
+        addToast("อัปโหลดรูปใบมรณะบัตรสำเร็จ", "success");
+      } else {
+        throw new Error("Invalid server response");
+      }
+    } catch (err) {
+      addToast(
+        err.response?.data?.message || "เกิดข้อผิดพลาดในการอัปโหลดรูปภาพ",
+        "error",
+      );
+    } finally {
+      setUploadingCertIndexes((prev) => ({ ...prev, [idx]: false }));
+    }
+  };
 
   const saveBookingMutation = useMutation({
     mutationFn: (payload) => {
@@ -147,6 +242,34 @@ const PlotDetail = () => {
         deceaseds: payload.deceaseds?.filter((d) => d.fullName?.trim()) || [],
         members: payload.members?.filter((m) => m.fullName?.trim()) || [],
       };
+
+      // Check duplicates
+      const contactNames = finalPayload.members.map((m) =>
+        m.fullName.trim().toLowerCase()
+      );
+      const hasDuplicateContacts = contactNames.some(
+        (name, idx) => contactNames.indexOf(name) !== idx
+      );
+      if (hasDuplicateContacts) {
+        throw new Error("ข้อมูลผู้ติดต่อต้องไม่ซ้ำกัน");
+      }
+
+      const deceasedNames = finalPayload.deceaseds.map((d) =>
+        d.fullName.trim().toLowerCase()
+      );
+      const hasDuplicateDeceaseds = deceasedNames.some(
+        (name, idx) => deceasedNames.indexOf(name) !== idx
+      );
+      if (hasDuplicateDeceaseds) {
+        throw new Error("ข้อมูลผู้ล่วงลับต้องไม่ซ้ำกัน");
+      }
+
+      const hasDuplicateBetween = contactNames.some((cName) =>
+        deceasedNames.includes(cName)
+      );
+      if (hasDuplicateBetween) {
+        throw new Error("ผู้ติดต่อและผู้ล่วงลับต้องไม่เป็นคนเดียวกัน");
+      }
 
       const hasActiveContract = plot?.contracts?.some((c) => !c.isArchived);
       return hasActiveContract
@@ -184,10 +307,14 @@ const PlotDetail = () => {
   });
   const payFeeMutation = useMutation({
     mutationFn: (payload) => {
+      const sanitized = {
+        ...payload,
+        amount: Number(payload.amount?.toString().replace(/,/g, "")),
+      };
       if (editingPayment) {
-        return Update(`/plots/${id}/payments/${editingPayment.id}`, payload);
+        return Update(`/plots/${id}/payments/${editingPayment.id}`, sanitized);
       }
-      return Post(`/plots/${id}/pay-annual-fee`, payload);
+      return Post(`/plots/${id}/pay-annual-fee`, sanitized);
     },
     onSuccess: () => {
       queryClient.invalidateQueries(["plot", id]);
@@ -226,6 +353,7 @@ const PlotDetail = () => {
     const newDeceased = {
       fullName: member.fullName,
       deathCertificateNumber: "",
+      deathCertificateImage: "",
       age: "",
       relationship: "",
       burialType: "coffin",
@@ -236,7 +364,16 @@ const PlotDetail = () => {
     const updatedMembers =
       newMembers.length > 0
         ? newMembers
-        : [{ fullName: "", phone: "", isMember: false, address: "" }];
+        : [
+            {
+              fullName: "",
+              phone: "",
+              email: "",
+              lineId: "",
+              isMember: false,
+              address: "",
+            },
+          ];
 
     setBookingForm({
       ...bookingForm,
@@ -254,7 +391,7 @@ const PlotDetail = () => {
     return <div className="p-8 text-center">กำลังโหลดข้อมูล...</div>;
 
   return (
-    <div className="p-6 max-w-6xl mx-auto space-y-6">
+    <div className="p-6 space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
@@ -266,7 +403,7 @@ const PlotDetail = () => {
           </button>
           <div>
             <h1 className="text-2xl font-bold text-[#111]">
-              รายละเอียดและแก้ไขข้อมูล
+              รายละเอียดสัญญา
             </h1>
             <p className="text-[#555] text-sm">
               หลุมหมายเลข:{" "}
@@ -348,7 +485,7 @@ const PlotDetail = () => {
             {/* Booking Type */}
             <div className="bg-white p-6 rounded-md border border-gray-200 space-y-6">
               <div className="flex items-center gap-2 text-[#111] font-semibold">
-                เลือกประเภทการจอง
+                เลือกประเภท
               </div>
               <div className="flex gap-4">
                 {["occupied", "reserved"].map((type) => (
@@ -383,13 +520,12 @@ const PlotDetail = () => {
 
               <div className="space-y-4 pt-4">
                 <div className="flex items-center gap-2 text-[#111] font-semibold">
-                  ข้อมูลการจอง
+                  ข้อมูลการทำสัญญา
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-1">
-                    <Label required>วันที่เริ่มจอง</Label>
-                    <Input
-                      type="date"
+                    <Label required>วันที่ทำสัญญา</Label>
+                    <DatePicker
                       value={bookingForm.booking.startDate}
                       disabled={hasActiveContract}
                       className={
@@ -409,8 +545,7 @@ const PlotDetail = () => {
                   </div>
                   <div className="space-y-1">
                     <Label>วันที่สิ้นสุด (30 ปี)</Label>
-                    <Input
-                      type="date"
+                    <DatePicker
                       value={bookingForm.booking.endDate}
                       disabled
                       className="bg-gray-50"
@@ -438,9 +573,10 @@ const PlotDetail = () => {
                           {
                             fullName: "",
                             deathCertificateNumber: "",
+                            deathCertificateImage: "",
                             age: "",
                             relationship: "",
-                            burialDate: dayjs().format("YYYY-MM-DD"),
+                            burialDate: dayjs().format("YYYY-MM-DDTHH:mm"),
                             burialType: "coffin",
                             contactIndex: 0,
                           },
@@ -526,6 +662,24 @@ const PlotDetail = () => {
                             });
                           }}
                         />
+                        {(() => {
+                          const isDuplicateDeceased = d.fullName?.trim() && bookingForm.deceaseds.some((dec, dIdx) => dIdx !== idx && dec.fullName?.trim().toLowerCase() === d.fullName?.trim().toLowerCase());
+                          const isSameAsContact = d.fullName?.trim() && bookingForm.members.some(m => m.fullName?.trim().toLowerCase() === d.fullName?.trim().toLowerCase());
+                          return (
+                            <>
+                              {isDuplicateDeceased && (
+                                <span className="text-xs text-rose-500 mt-1 block">
+                                  รายชื่อนี้ซ้ำกับผู้ล่วงลับท่านอื่น
+                                </span>
+                              )}
+                              {isSameAsContact && (
+                                <span className="text-xs text-rose-500 mt-1 block">
+                                  รายชื่อนี้ซ้ำกับผู้ติดต่อ
+                                </span>
+                              )}
+                            </>
+                          );
+                        })()}
                       </div>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div className="space-y-1">
@@ -545,13 +699,13 @@ const PlotDetail = () => {
                           />
                         </div>
                         <div className="space-y-1">
-                          <Label required>วันที่ฝัง/บรรจุ</Label>
-                          <Input
-                            type="date"
-                            value={d.burialDate}
+                          <Label required>วันที่และเวลาฝัง/บรรจุ</Label>
+                          <DateTimePicker
+                            value={d.burialDate || ""}
                             onChange={(e) => {
+                              const val = e.target.value;
                               const newList = [...bookingForm.deceaseds];
-                              newList[idx].burialDate = e.target.value;
+                              newList[idx].burialDate = val;
                               setBookingForm({
                                 ...bookingForm,
                                 deceaseds: newList,
@@ -590,6 +744,75 @@ const PlotDetail = () => {
                             options={BURIAL_TYPE_OPTIONS}
                           />
                         </div>
+                        {/* Death Certificate Image Upload */}
+                        <div className="space-y-1 md:col-span-2">
+                          <Label>ใบมรณะบัตร (รูปภาพ)</Label>
+                          <div className="flex gap-2">
+                            <div className="flex-grow flex items-center min-h-[44px] px-1 overflow-hidden">
+                              {uploadingCertIndexes[idx] ? (
+                                <span className="text-sm text-gray-400 italic">
+                                  กำลังอัปโหลด...
+                                </span>
+                              ) : d.deathCertificateImage ? (
+                                <a
+                                  className="text-base font-medium text-[#003527] underline truncate cursor-pointer"
+                                  title={decodeURIComponent(
+                                    d.deathCertificateImage.split("/").pop(),
+                                  )}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  href={d.deathCertificateImage}
+                                >
+                                  {decodeURIComponent(
+                                    d.deathCertificateImage.split("/").pop(),
+                                  )}
+                                </a>
+                              ) : (
+                                <span className="text-sm text-gray-400 italic">
+                                  ยังไม่ได้อัปโหลดรูปใบมรณะบัตร...
+                                </span>
+                              )}
+                            </div>
+                            <input
+                              type="file"
+                              id={`cert-upload-${idx}`}
+                              className="hidden"
+                              accept="image/*"
+                              onChange={(e) => {
+                                const file = e.target.files[0];
+                                if (file) handleDeceasedCertUpload(idx, file);
+                              }}
+                            />
+                            {d.deathCertificateImage &&
+                              d.deathCertificateImage.startsWith("http") && (
+                                <a
+                                  href={d.deathCertificateImage}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="w-11 h-11 border border-gray-200 flex items-center justify-center rounded-md hover:bg-gray-50 text-blue-600 shrink-0"
+                                  title="ดูรูปภาพใบมรณะบัตร"
+                                >
+                                  <ImageIcon size={18} />
+                                </a>
+                              )}
+                            <div className="shrink-0">
+                              <Button
+                                type="button"
+                                variant="outline"
+                                className="w-11 h-11 p-0 flex items-center justify-center border-gray-200"
+                                onClick={() =>
+                                  document
+                                    .getElementById(`cert-upload-${idx}`)
+                                    .click()
+                                }
+                                title="อัปโหลดรูปใบมรณะบัตร"
+                                loading={uploadingCertIndexes[idx]}
+                              >
+                                <Upload size={18} />
+                              </Button>
+                            </div>
+                          </div>
+                        </div>
                       </div>
                     </div>
                   ))}
@@ -616,6 +839,7 @@ const PlotDetail = () => {
                         fullName: "",
                         phone: "",
                         email: "",
+                        lineId: "",
                         isMember: false,
                         address: "",
                       },
@@ -632,10 +856,10 @@ const PlotDetail = () => {
                   key={idx}
                   className="p-4 bg-gray-50/50 rounded-md border border-gray-200 space-y-4 relative"
                 >
-                  <div className="flex justify-between items-start">
+                  <div className="flex justify-between items-center pb-2 border-b border-gray-100">
                     <div className="flex items-center gap-2">
-                      <div className="flex items-center gap-2 text-sm text-[111] font-semibold">
-                        ลำดับที่ {idx + 1}
+                      <div className="text-sm font-semibold text-gray-800">
+                        ผู้ติดต่อลำดับที่ {idx + 1}
                       </div>
                       <div className="flex bg-gray-100 rounded p-0.5 ml-2">
                         <button
@@ -651,7 +875,7 @@ const PlotDetail = () => {
                               members: newMembers,
                             });
                           }}
-                          className="p-1 disabled:opacity-30"
+                          className="p-1 disabled:opacity-30 hover:bg-white rounded transition-colors"
                         >
                           <ChevronUp size={14} />
                         </button>
@@ -668,57 +892,124 @@ const PlotDetail = () => {
                               members: newMembers,
                             });
                           }}
-                          className="p-1 disabled:opacity-30"
+                          className="p-1 disabled:opacity-30 hover:bg-white rounded transition-colors"
                         >
                           <ChevronDown size={14} />
                         </button>
                       </div>
                     </div>
-                    <div className="flex items-center gap-3">
-                      {member.fullName && hasActiveContract && (
+                    {bookingForm.members.length > 1 && (
+                      <button
+                        onClick={() =>
+                          setBookingForm({
+                            ...bookingForm,
+                            members: bookingForm.members.filter(
+                              (_, i) => i !== idx,
+                            ),
+                          })
+                        }
+                        className="text-rose-500 hover:bg-rose-50 p-1.5 rounded-full transition-colors"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    )}
+                  </div>
+                  <div className="flex flex-wrap items-center justify-end gap-3 pt-1">
+                    {member.id && (
+                      <div className="flex items-center gap-1.5 bg-blue-50 text-blue-700 px-3 py-1.5 rounded text-xs font-medium border border-blue-100 h-[34px]">
+                        <span>เชื่อมโยงประวัติเดิม</span>
                         <button
-                          onClick={() => moveToDeceased(idx)}
-                          className="text-[10px] font-bold text-amber-600 border border-amber-200 bg-amber-50 px-2 py-1 rounded hover:bg-amber-100 transition-colors"
-                        >
-                          ย้ายเป็นผู้ล่วงลับ
-                        </button>
-                      )}
-                      <label className="flex items-center gap-2 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={member.isMember}
-                          onChange={(e) => {
+                          type="button"
+                          onClick={() => {
                             const newMembers = [...bookingForm.members];
-                            newMembers[idx].isMember = e.target.checked;
+                            delete newMembers[idx].id;
                             setBookingForm({
                               ...bookingForm,
                               members: newMembers,
                             });
+                            addToast(
+                              "ยกเลิกการเชื่อมโยงประวัติเดิมแล้ว (จะถูกบันทึกเป็นผู้ติดต่อคนใหม่)",
+                              "info",
+                            );
                           }}
-                          className="w-4 h-4 text-[#003527] rounded focus:ring-[#003527]"
-                        />
-                        <span className="text-xs text-gray-600">
-                          สมาชิกสมาคม
-                        </span>
-                      </label>
-                      {bookingForm.members.length > 1 && (
-                        <button
-                          onClick={() =>
-                            setBookingForm({
-                              ...bookingForm,
-                              members: bookingForm.members.filter(
-                                (_, i) => i !== idx,
-                              ),
-                            })
-                          }
-                          className="text-rose-500 hover:bg-rose-50 p-1 rounded-full"
+                          className="hover:text-blue-900 underline font-bold"
                         >
-                          <Trash2 size={16} />
+                          ยกเลิกเชื่อมโยง
+                        </button>
+                      </div>
+                    )}
+
+                    {!member.id &&
+                      member.fullName &&
+                      (membersList || []).some(
+                        (m) => m.fullName.trim() === member.fullName.trim(),
+                      ) && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const match = (membersList || []).find(
+                              (m) =>
+                                m.fullName.trim() === member.fullName.trim(),
+                            );
+                            if (match) {
+                              const newMembers = [...bookingForm.members];
+                              newMembers[idx] = {
+                                ...newMembers[idx],
+                                id: match.id,
+                                phone: match.phone || newMembers[idx].phone,
+                                email: match.email || newMembers[idx].email,
+                                lineId: match.lineId || newMembers[idx].lineId,
+                                address:
+                                  match.address || newMembers[idx].address,
+                                isMember:
+                                  match.isMember || newMembers[idx].isMember,
+                              };
+                              setBookingForm({
+                                ...bookingForm,
+                                members: newMembers,
+                              });
+                              addToast(
+                                "เชื่อมโยงประวัติเดิมเรียบร้อยแล้ว",
+                                "success",
+                              );
+                            }
+                          }}
+                          className="text-xs font-semibold text-emerald-700 border border-emerald-200 bg-emerald-50 px-3 py-1.5 rounded hover:bg-emerald-100 transition-colors h-[34px]"
+                        >
+                          เชื่อมโยงประวัติเดิม
                         </button>
                       )}
-                    </div>
+
+                    {member.fullName && hasActiveContract && (
+                      <button
+                        type="button"
+                        onClick={() => moveToDeceased(idx)}
+                        className="text-xs font-semibold text-amber-700 border border-amber-200 bg-amber-50 px-3 py-1.5 rounded hover:bg-amber-100 transition-colors h-[34px]"
+                      >
+                        ย้ายเป็นผู้ล่วงลับ
+                      </button>
+                    )}
+
+                    <label className="flex items-center gap-2 cursor-pointer bg-white px-3 py-1.5 rounded border border-gray-200 hover:bg-gray-50 transition-colors h-[34px]">
+                      <input
+                        type="checkbox"
+                        checked={member.isMember}
+                        onChange={(e) => {
+                          const newMembers = [...bookingForm.members];
+                          newMembers[idx].isMember = e.target.checked;
+                          setBookingForm({
+                            ...bookingForm,
+                            members: newMembers,
+                          });
+                        }}
+                        className="w-4 h-4 text-[#003527] rounded focus:ring-[#003527] cursor-pointer"
+                      />
+                      <span className="text-xs font-medium text-gray-700">
+                        สมาชิกสมาคม
+                      </span>
+                    </label>
                   </div>
-                  <div className="space-y-1">
+                   <div className="space-y-1 relative">
                     <Label required>ชื่อ-นามสกุล</Label>
                     <Input
                       value={member.fullName}
@@ -730,9 +1021,94 @@ const PlotDetail = () => {
                           members: newMembers,
                         });
                       }}
+                      onFocus={() => setActiveMemberDropdownIdx(idx)}
+                      onBlur={() => {
+                        setTimeout(() => {
+                          setActiveMemberDropdownIdx(null);
+                        }, 200);
+                      }}
+                      placeholder="พิมพ์เพื่อค้นหา หรือพิมพ์สร้างผู้ติดต่อใหม่"
                     />
+
+                    {(() => {
+                      const isDuplicateContact = member.fullName?.trim() && bookingForm.members.some((m, mIdx) => mIdx !== idx && m.fullName?.trim().toLowerCase() === member.fullName?.trim().toLowerCase());
+                      const isSameAsDeceased = member.fullName?.trim() && bookingForm.deceaseds?.some(d => d.fullName?.trim().toLowerCase() === member.fullName?.trim().toLowerCase());
+                      return (
+                        <>
+                          {isDuplicateContact && (
+                            <span className="text-xs text-rose-500 mt-1 block">
+                              รายชื่อนี้ซ้ำกับผู้ติดต่อท่านอื่น
+                            </span>
+                          )}
+                          {isSameAsDeceased && (
+                            <span className="text-xs text-rose-500 mt-1 block">
+                              รายชื่อนี้ซ้ำกับผู้ล่วงลับ
+                            </span>
+                          )}
+                        </>
+                      );
+                    })()}
+
+                    {/* Autocomplete Dropdown */}
+                    {activeMemberDropdownIdx === idx &&
+                      (member.fullName || "").trim().length > 0 && (
+                        <div className="absolute z-10 left-0 right-0 mt-1 bg-white border border-gray-200 rounded-md shadow-lg max-h-60 overflow-y-auto">
+                          {(() => {
+                            const query = (member.fullName || "")
+                              .toLowerCase()
+                              .trim();
+                            const filtered = (membersList || []).filter((m) =>
+                              m.fullName.toLowerCase().includes(query) &&
+                              !bookingForm.members.some((bm, bIdx) => bIdx !== idx && (bm.id === m.id || bm.fullName?.trim().toLowerCase() === m.fullName.trim().toLowerCase()))
+                            );
+
+                            if (filtered.length === 0) {
+                              return (
+                                <div className="p-3 text-xs text-[#777] text-center">
+                                  ไม่พบสมาชิกชื่อ "{member.fullName}"
+                                  (สามารถพิมพ์ต่อเพื่อสร้างใหม่)
+                                </div>
+                              );
+                            }
+
+                            return filtered.map((m) => (
+                              <button
+                                key={m.id}
+                                type="button"
+                                onClick={() => {
+                                  const newMembers = [...bookingForm.members];
+                                  newMembers[idx] = {
+                                    id: m.id,
+                                    fullName: m.fullName,
+                                    phone: m.phone || "",
+                                    email: m.email || "",
+                                    lineId: m.lineId || "",
+                                    address: m.address || "",
+                                    isMember: m.isMember || false,
+                                  };
+                                  setBookingForm({
+                                    ...bookingForm,
+                                    members: newMembers,
+                                  });
+                                }}
+                                className="w-full text-left px-4 py-2 text-sm hover:bg-gray-50 flex flex-col border-b border-gray-100 last:border-0"
+                              >
+                                <span className="font-bold text-gray-900">
+                                  {m.fullName}
+                                </span>
+                                <span className="text-xs text-[#555]">
+                                  เบอร์โทร: {m.phone || "-"} |{" "}
+                                  {m.isMember
+                                    ? "สมาชิกสมาคม"
+                                    : "ผู้ติดต่อภายนอก"}
+                                </span>
+                              </button>
+                            ));
+                          })()}
+                        </div>
+                      )}
                   </div>
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-1">
                       <Label required>เบอร์โทรศัพท์</Label>
                       <Input
@@ -766,6 +1142,21 @@ const PlotDetail = () => {
                     </div>
                   </div>
                   <div className="space-y-1">
+                    <Label>Line ID</Label>
+                    <Input
+                      placeholder="กรอก Line ID (ถ้ามี)"
+                      value={member.lineId || ""}
+                      onChange={(e) => {
+                        const newMembers = [...bookingForm.members];
+                        newMembers[idx].lineId = e.target.value;
+                        setBookingForm({
+                          ...bookingForm,
+                          members: newMembers,
+                        });
+                      }}
+                    />
+                  </div>
+                  <div className="space-y-1">
                     <Label>ที่อยู่</Label>
                     <Textarea
                       rows={2}
@@ -785,7 +1176,7 @@ const PlotDetail = () => {
       ) : activeTab === "history" ? (
         <div className="bg-white p-6 rounded-md border border-gray-200">
           <div className="flex items-center gap-2 text-[#111] font-semibold">
-            เลือกประเภทประวัติการทำรายการย้อนหลังการจอง
+            ประวัติการทำรายการ
           </div>
           <div className="mt-6 space-y-3">
             {plot?.logs?.length > 0 ? (
@@ -801,10 +1192,10 @@ const PlotDetail = () => {
         <div className="bg-white rounded-md border border-gray-200 overflow-hidden">
           <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-white">
             <div>
-              <div className="flex items-center gap-2 text-[#111] font-semibold">
+              <div className="flex items-center gap-2 font-bold text-[#111]">
                 ประวัติการชำระเงินรายปี
               </div>
-              <p className="text-xs text-[#111]">
+              <p className="text-sm text-gray-500">
                 ชำระทุก 1 ปี เพื่อรักษาความต่อเนื่องของสัญญา
               </p>
             </div>
@@ -818,6 +1209,7 @@ const PlotDetail = () => {
                     paymentDate: dayjs().format("YYYY-MM-DD"),
                     paymentType: "cash",
                     notes: "",
+                    paymentProofImage: "",
                   });
                   setEditingPayment(null);
                   setShowPaymentModal(true);
@@ -831,22 +1223,22 @@ const PlotDetail = () => {
             <table className="w-full text-left">
               <thead className="bg-gray-50 border-b border-gray-200">
                 <tr>
-                  <th className="px-6 py-3 text-[10px] font-bold text-[#777] uppercase tracking-wider">
+                  <th className="px-6 py-3 text-xs font-bold text-[#777] uppercase tracking-wider">
                     ปีที่ชำระ
                   </th>
-                  <th className="px-6 py-3 text-[10px] font-bold text-[#777] uppercase tracking-wider">
+                  <th className="px-6 py-3 text-xs font-bold text-[#777] uppercase tracking-wider">
                     จำนวนเงิน
                   </th>
-                  <th className="px-6 py-3 text-[10px] font-bold text-[#777] uppercase tracking-wider">
+                  <th className="px-6 py-3 text-xs font-bold text-[#777] uppercase tracking-wider">
                     วันที่ชำระ
                   </th>
-                  <th className="px-6 py-3 text-[10px] font-bold text-[#777] uppercase tracking-wider">
+                  <th className="px-6 py-3 text-xs font-bold text-[#777] uppercase tracking-wider">
                     ประเภท/หมายเหตุ
                   </th>
-                  <th className="px-6 py-3 text-[10px] font-bold text-[#777] uppercase tracking-wider">
+                  {/* <th className="px-6 py-3 text-xs font-bold text-[#777] uppercase tracking-wider">
                     สถานะ
-                  </th>
-                  <th className="px-6 py-3 text-[10px] font-bold text-[#777] uppercase tracking-wider text-right">
+                  </th> */}
+                  <th className="px-6 py-3 text-xs font-bold text-[#777] uppercase tracking-wider text-right">
                     จัดการ
                   </th>
                 </tr>
@@ -866,25 +1258,42 @@ const PlotDetail = () => {
                           {Number(p.amount).toLocaleString()} บาท
                         </td>
                         <td className="px-6 py-4 text-sm text-[#555]">
-                          {dayjs(p.paymentDate).format("DD/MM/YYYY")}
+                          {dayjs(p.paymentDate)
+                            .add(543, "year")
+                            .format("DD/MM/YYYY")}
                         </td>
                         <td className="px-6 py-4">
-                          <div className="flex flex-col">
-                            <span className="text-xs font-medium text-gray-700">
-                              {p.paymentType === "cash" ? "เงินสด" : "เงินโอน"}
-                            </span>
-                            {p.notes && (
-                              <span className="text-[10px] text-[#999]">
-                                {p.notes}
+                          <div className="flex items-center gap-2">
+                            <div className="flex flex-col">
+                              <span className="text-sm font-medium text-gray-700">
+                                {p.paymentType === "cash"
+                                  ? "เงินสด"
+                                  : "เงินโอน"}
                               </span>
+                              {p.notes && (
+                                <span className="text-xs text-[#999]">
+                                  {p.notes}
+                                </span>
+                              )}
+                            </div>
+                            {p.paymentProofImage && (
+                              <a
+                                href={p.paymentProofImage}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="p-1 hover:bg-gray-100 rounded text-blue-600 transition-colors shrink-0"
+                                title="ดูหลักฐานการชำระเงิน"
+                              >
+                                <ImageIcon size={16} />
+                              </a>
                             )}
                           </div>
                         </td>
-                        <td className="px-6 py-4">
-                          <span className="px-2 py-1 rounded-full text-[10px] font-bold bg-green-50 text-green-700 border border-green-100 uppercase">
+                        {/* <td className="px-6 py-4">
+                          <span className="px-2 py-1 rounded-full text-xs font-bold bg-green-50 text-green-700 border border-green-100 uppercase">
                             {p.status}
                           </span>
-                        </td>
+                        </td> */}
                         <td className="px-6 py-4 text-right">
                           <div className="flex justify-end gap-2">
                             <button
@@ -898,6 +1307,7 @@ const PlotDetail = () => {
                                   ),
                                   paymentType: p.paymentType,
                                   notes: p.notes || "",
+                                  paymentProofImage: p.paymentProofImage || "",
                                 });
                                 setShowPaymentModal(true);
                               }}
@@ -970,7 +1380,9 @@ const PlotDetail = () => {
                         วันเริ่มสัญญาใหม่:
                       </p>
                       <p className="font-bold text-gray-900 text-sm">
-                        {dayjs(plot.contracts[0].endDate).format("DD/MM/YYYY")}
+                        {dayjs(plot.contracts[0].endDate)
+                          .add(543, "year")
+                          .format("DD/MM/YYYY")}
                       </p>
                     </div>
                     <div>
@@ -980,6 +1392,7 @@ const PlotDetail = () => {
                       <p className="font-bold text-gray-900 text-sm">
                         {dayjs(plot.contracts[0].endDate)
                           .add(30, "year")
+                          .add(543, "year")
                           .format("DD/MM/YYYY")}
                       </p>
                     </div>
@@ -1045,26 +1458,32 @@ const PlotDetail = () => {
                     }
                     options={Array.from({ length: 61 }, (_, i) => {
                       const year = dayjs().year() - 30 + i;
-                      return { label: `${year}`, value: year };
+                      return { label: `${year + 543}`, value: year };
                     })}
                   />
                 </div>
                 <div className="space-y-1">
                   <Label required>จำนวนเงิน (บาท)</Label>
                   <Input
-                    type="number"
-                    value={paymentForm.amount}
-                    onChange={(e) =>
-                      setPaymentForm({ ...paymentForm, amount: e.target.value })
-                    }
+                    type="text"
+                    value={formatNumberWithCommas(paymentForm.amount)}
+                    onChange={(e) => {
+                      let clean = e.target.value.replace(/,/g, "");
+                      if (clean.startsWith("0") && clean.length > 1 && clean[1] !== ".") {
+                        clean = clean.replace(/^0+/, "");
+                        if (clean === "") clean = "0";
+                      }
+                      if (clean === "" || /^\d*\.?\d*$/.test(clean)) {
+                        setPaymentForm({ ...paymentForm, amount: clean });
+                      }
+                    }}
                   />
                 </div>
               </div>
 
               <div className="space-y-1">
                 <Label required>วันที่ชำระเงิน</Label>
-                <Input
-                  type="date"
+                <DatePicker
                   value={paymentForm.paymentDate}
                   onChange={(e) =>
                     setPaymentForm({
@@ -1110,8 +1529,72 @@ const PlotDetail = () => {
                   onChange={(e) =>
                     setPaymentForm({ ...paymentForm, notes: e.target.value })
                   }
-                  rows={3}
                 />
+              </div>
+
+              <div className="space-y-1">
+                <Label>หลักฐานการชำระเงิน (รูปใบเสร็จ/สลิป)</Label>
+                <div className="flex gap-2">
+                  <div className="flex-grow flex items-center min-h-[44px] px-1 overflow-hidden">
+                    {isUploadingPaymentProof ? (
+                      <span className="text-sm text-gray-400 italic">
+                        กำลังอัปโหลด...
+                      </span>
+                    ) : paymentForm.paymentProofImage ? (
+                      <a
+                        className="text-base font-medium text-[#003527] underline truncate cursor-pointer"
+                        title={decodeURIComponent(
+                          paymentForm.paymentProofImage.split("/").pop(),
+                        )}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        href={paymentForm.paymentProofImage}
+                      >
+                        {decodeURIComponent(
+                          paymentForm.paymentProofImage.split("/").pop(),
+                        )}
+                      </a>
+                    ) : (
+                      <span className="text-sm text-gray-400 italic">
+                        ยังไม่ได้อัปโหลดรูปหลักฐานการชำระเงิน...
+                      </span>
+                    )}
+                  </div>
+                  <input
+                    type="file"
+                    ref={paymentProofInputRef}
+                    className="hidden"
+                    accept="image/*"
+                    onChange={(e) => {
+                      const file = e.target.files[0];
+                      if (file) handlePaymentProofUpload(file);
+                    }}
+                  />
+                  {paymentForm.paymentProofImage &&
+                    paymentForm.paymentProofImage.startsWith("http") && (
+                      <a
+                        href={paymentForm.paymentProofImage}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="w-11 h-11 border border-gray-200 flex items-center justify-center rounded-md hover:bg-gray-50 text-blue-600 shrink-0"
+                        title="ดูรูปภาพหลักฐานการชำระเงิน"
+                      >
+                        <ImageIcon size={18} />
+                      </a>
+                    )}
+                  <div className="shrink-0">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="w-11 h-11 p-0 flex items-center justify-center border-gray-200"
+                      onClick={() => paymentProofInputRef.current?.click()}
+                      title="อัปโหลดหลักฐานการชำระเงิน"
+                      loading={isUploadingPaymentProof}
+                    >
+                      <Upload size={18} />
+                    </Button>
+                  </div>
+                </div>
               </div>
             </div>
             <div className="p-6 bg-gray-50 flex gap-3">

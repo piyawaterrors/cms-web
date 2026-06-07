@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { GetSearch, Post, Update, Delete } from "@services/https";
 import { useToast } from "@contexts/ToastContext";
+import { useAuth } from "@contexts/AuthContext";
 import Button from "@components/ui/Button";
 import Input from "@components/ui/Input";
 import Label from "@components/ui/Label";
@@ -21,6 +22,26 @@ import Pagination from "@components/ui/Pagination";
 const Staff = () => {
   const queryClient = useQueryClient();
   const { addToast } = useToast();
+  const { role: currentRole, user: currentUser } = useAuth();
+
+  // เช็คสิทธิ์การแก้ไขข้อมูล
+  const canEdit = (targetUser) => {
+    if (!targetUser) return false;
+    if (currentRole !== "admin") return false;
+    if (targetUser.role === "admin" && targetUser.id !== currentUser?.id) {
+      return false;
+    }
+    return true;
+  };
+
+  // เช็คสิทธิ์การลบข้อมูล
+  const canDelete = (targetUser) => {
+    if (!targetUser) return false;
+    if (currentRole !== "admin") return false;
+    if (targetUser.id === currentUser?.id) return false;
+    if (targetUser.role === "admin") return false;
+    return true;
+  };
 
   // State สำหรับ Modal และการแก้ไข
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -116,6 +137,10 @@ const Staff = () => {
 
   const openModal = (user = null) => {
     if (user) {
+      if (!canEdit(user)) {
+        addToast("คุณไม่มีสิทธิ์แก้ไขข้อมูลผู้ใช้งานรายนี้", "error");
+        return;
+      }
       setEditingUser(user);
       setFormData({
         username: user.username,
@@ -125,6 +150,10 @@ const Staff = () => {
         role: user.role || "staff",
       });
     } else {
+      if (currentRole !== "admin") {
+        addToast("คุณไม่มีสิทธิ์เพิ่มพนักงานใหม่", "error");
+        return;
+      }
       setEditingUser(null);
       setFormData({
         username: "",
@@ -148,6 +177,15 @@ const Staff = () => {
   };
 
   const handleDelete = (id) => {
+    const targetUser = users?.rows?.find((u) => u.id === id);
+    if (!canDelete(targetUser)) {
+      if (targetUser?.id === currentUser?.id) {
+        addToast("คุณไม่สามารถลบข้อมูลของตนเองได้", "error");
+      } else {
+        addToast("คุณไม่มีสิทธิ์ในการจัดการข้อมูลผู้ใช้งานรายนี้", "error");
+      }
+      return;
+    }
     if (window.confirm("คุณแน่ใจหรือไม่ว่าต้องการลบพนักงานรายนี้?")) {
       deleteMutation.mutate(id);
     }
@@ -159,18 +197,20 @@ const Staff = () => {
     );
 
   return (
-    <div className="p-6 max-w-7xl mx-auto space-y-6">
+    <div className="p-6 mx-auto space-y-6">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-[#111]">บริหารพนักงาน</h1>
-          <p className="text-sm text-[#555]">
+          <h1 className="text-3xl font-bold text-[#111]">บริหารพนักงาน</h1>
+          <p className="text-base text-[#555]">
             จัดการบัญชีผู้ใช้งานพนักงานและสิทธิ์การเข้าถึง
           </p>
         </div>
-        <Button onClick={() => openModal()}>
-          <Plus size={18} />
-          เพิ่มพนักงานใหม่
-        </Button>
+        {currentRole === "admin" && (
+          <Button onClick={() => openModal()}>
+            <Plus size={18} />
+            เพิ่มพนักงานใหม่
+          </Button>
+        )}
       </div>
 
       {/* Filter & Search Bar */}
@@ -261,19 +301,46 @@ const Staff = () => {
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex justify-center items-center gap-2">
-                        <Button
-                          variant="outline"
-                          className="h-8 w-12 text-xs font-medium"
-                          onClick={() => openModal(user)}
-                        >
-                          <Pencil size={14} />
-                        </Button>
-                        <Button
-                          className="h-8 w-12 text-xs font-medium"
-                          onClick={() => handleDelete(user.id)}
-                        >
-                          <Trash2 size={14} />
-                        </Button>
+                        {canEdit(user) ? (
+                          <Button
+                            variant="outline"
+                            className="h-8 w-12 text-xs font-medium"
+                            onClick={() => openModal(user)}
+                          >
+                            <Pencil size={14} />
+                          </Button>
+                        ) : (
+                          <Button
+                            variant="outline"
+                            className="h-8 w-12 text-xs font-medium opacity-40 cursor-not-allowed"
+                            disabled
+                            title="ไม่มีสิทธิ์แก้ไขข้อมูลผู้ใช้งานรายนี้"
+                          >
+                            <Pencil size={14} />
+                          </Button>
+                        )}
+                        {canDelete(user) ? (
+                          <Button
+                            variant="outline"
+                            className="h-8 w-12 p-0 flex items-center justify-center text-xs font-medium border-rose-200 text-rose-600 hover:bg-rose-600 hover:text-white rounded-md"
+                            onClick={() => handleDelete(user.id)}
+                          >
+                            <Trash2 size={14} />
+                          </Button>
+                        ) : (
+                          <Button
+                            variant="outline"
+                            className="h-8 w-12 p-0 flex items-center justify-center text-xs font-medium border-gray-200 text-gray-400 opacity-40 cursor-not-allowed rounded-md"
+                            disabled
+                            title={
+                              user.id === currentUser?.id
+                                ? "ไม่สามารถลบข้อมูลของตนเองได้"
+                                : "ไม่มีสิทธิ์ลบข้อมูลผู้ใช้งานรายนี้"
+                            }
+                          >
+                            <Trash2 size={14} />
+                          </Button>
+                        )}
                       </div>
                     </td>
                   </tr>

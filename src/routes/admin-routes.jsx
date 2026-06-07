@@ -11,7 +11,6 @@ import Plots from "../pages/plots";
 import PlotDetail from "../pages/plots/detail";
 import Deceased from "../pages/deceased";
 import Donations from "../pages/donations";
-import Relocation from "../pages/relocation";
 import Staff from "../pages/staff";
 import SocietySettings from "../pages/settings";
 
@@ -46,10 +45,6 @@ const AdminRoutes = {
     {
       path: "donations",
       element: <Donations />,
-    },
-    {
-      path: "relocation",
-      element: <Relocation />,
     },
     {
       path: "staff",

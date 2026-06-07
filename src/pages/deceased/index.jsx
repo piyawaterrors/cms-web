@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import dayjs from "dayjs";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -12,9 +12,12 @@ import {
   Pencil,
   X,
   Trash2,
+  Upload,
+  Image as ImageIcon,
+  Mail,
 } from "lucide-react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Get, Update } from "@/services/https";
+import { Get, Update, Post } from "@/services/https";
 import { useToast } from "@/contexts/ToastContext";
 import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
@@ -22,6 +25,7 @@ import Label from "@/components/ui/Label";
 import Pagination from "@/components/ui/Pagination";
 import { useNavigate } from "react-router-dom";
 import Select from "@/components/ui/Select";
+import { compressImage } from "@/utils/imageCompressor";
 
 const BURIAL_TYPE_OPTIONS = [
   { label: "โลงศพ", value: "coffin" },
@@ -49,6 +53,10 @@ const DeceasedRegistry = () => {
     burialType: "coffin",
   });
 
+  // Detail Modal State
+  const [isDetailOpen, setIsDetailOpen] = useState(false);
+  const [selectedDeceasedId, setSelectedDeceasedId] = useState(null);
+
   // Debounce logic
   useEffect(() => {
     const handler = setTimeout(() => {
@@ -71,6 +79,16 @@ const DeceasedRegistry = () => {
     placeholderData: (previousData) => previousData,
   });
 
+  const { data: deceasedDetail, isLoading: isLoadingDetail } = useQuery({
+    queryKey: ["deceasedDetail", selectedDeceasedId],
+    queryFn: async () => {
+      if (!selectedDeceasedId) return null;
+      const res = await Get(`/deceaseds/${selectedDeceasedId}`);
+      return res.data;
+    },
+    enabled: !!selectedDeceasedId,
+  });
+
   const updateMutation = useMutation({
     mutationFn: (data) => Update(`/deceaseds/${editingDeceased.id}`, data),
     onSuccess: () => {
@@ -86,11 +104,15 @@ const DeceasedRegistry = () => {
     },
   });
 
+  const fileInputRef = useRef(null);
+  const [isUploading, setIsUploading] = useState(false);
+
   const openModal = (deceased) => {
     setEditingDeceased(deceased);
     setFormData({
       fullName: deceased.fullName || "",
       deathCertificateNumber: deceased.deathCertificateNumber || "",
+      deathCertificateImage: deceased.deathCertificateImage || "",
       burialDate: deceased.burialDate || "",
       burialType: deceased.burialType || "coffin",
     });
@@ -100,6 +122,37 @@ const DeceasedRegistry = () => {
   const closeModal = () => {
     setIsModalOpen(false);
     setEditingDeceased(null);
+  };
+
+  const handleFileChange = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    setIsUploading(true);
+    try {
+      const compressedFile = await compressImage(file);
+      const data = new FormData();
+      data.append("file", compressedFile);
+
+      const res = await Post("/deceaseds/upload-certificate", data);
+
+      if (res.data && res.data.url) {
+        setFormData((prev) => ({
+          ...prev,
+          deathCertificateImage: res.data.url,
+        }));
+        addToast("อัปโหลดรูปใบมรณะบัตรสำเร็จ", "success");
+      } else {
+        throw new Error("Invalid response");
+      }
+    } catch (err) {
+      addToast(
+        err.response?.data?.message || "เกิดข้อผิดพลาดในการอัปโหลดรูปภาพ",
+        "error",
+      );
+    } finally {
+      setIsUploading(false);
+    }
   };
 
   const handleSubmit = (e) => {
@@ -112,12 +165,12 @@ const DeceasedRegistry = () => {
   const totalPages = Math.ceil(totalCount / limit);
 
   return (
-    <div className="p-6 max-w-7xl mx-auto space-y-6">
+    <div className="p-6 mx-auto space-y-6">
       {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div className="flex items-center gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-[#111]">ทะเบียนศพส่วนกลาง</h1>
-          <p className="text-sm text-[#555]">
+          <h1 className="text-3xl font-bold text-[#111]">ทะเบียนศพส่วนกลาง</h1>
+          <p className="text-base text-[#555]">
             ระบบสืบค้นรายชื่อผู้ล่วงลับและประวัติการบรรจุศพทั้งหมด
           </p>
         </div>
@@ -187,7 +240,11 @@ const DeceasedRegistry = () => {
                 deceasedList.map((deceased) => (
                   <tr
                     key={deceased.id}
-                    className="hover:bg-gray-50/50 transition-colors"
+                    className="hover:bg-gray-50/50 transition-colors cursor-pointer"
+                    onClick={() => {
+                      setSelectedDeceasedId(deceased.id);
+                      setIsDetailOpen(true);
+                    }}
                   >
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-3">
@@ -224,7 +281,7 @@ const DeceasedRegistry = () => {
                     </td>
                     <td className="px-6 py-4 text-sm text-[#333] text-center">
                       {deceased.burialDate
-                        ? dayjs(deceased.burialDate).format("DD/MM/YYYY")
+                        ? dayjs(deceased.burialDate).format("DD/MM/YYYY HH:mm")
                         : "N/A"}
                     </td>
                     <td className="px-6 py-4 text-center">
@@ -249,11 +306,6 @@ const DeceasedRegistry = () => {
                               <p className="text-xs text-gray-500">
                                 {deceased.contact.phone || "-"}
                               </p>
-                              {deceased.contact.email && (
-                                <p className="text-[10px] text-gray-400">
-                                  {deceased.contact.email}
-                                </p>
-                              )}
                             </div>
                           </div>
                         </div>
@@ -265,16 +317,27 @@ const DeceasedRegistry = () => {
                       <div className="flex justify-center items-center gap-2">
                         <Button
                           variant="outline"
-                          className="h-8 w-12 px-3 text-xs font-medium"
-                          onClick={() => navigate(`/plots/${deceased.plotId}`)}
+                          className="h-8 w-12 p-0 flex items-center justify-center text-xs font-medium border-gray-200 text-gray-700 hover:bg-gray-50 rounded-md"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (deceased.plotId)
+                              navigate(`/plots/detail/${deceased.plotId}`);
+                          }}
+                          disabled={!deceased.plotId}
+                          title="ดูรายละเอียดหลุมศพ"
                         >
-                          <Pencil size={14} />
+                          <ExternalLink size={14} />
                         </Button>
                         <Button
-                          className="h-8 w-12 text-xs font-medium"
-                          onClick={() => openModal(deceased)}
+                          variant="outline"
+                          className="h-8 w-12 p-0 flex items-center justify-center text-xs font-medium border-gray-200 text-gray-700 hover:bg-gray-50 rounded-md"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            openModal(deceased);
+                          }}
+                          title="แก้ไขข้อมูลผู้ล่วงลับ"
                         >
-                          <Trash2 size={14} />
+                          <Pencil size={14} />
                         </Button>
                       </div>
                     </td>
@@ -335,12 +398,65 @@ const DeceasedRegistry = () => {
               </div>
 
               <div className="space-y-1">
-                <Label>วันที่บรรจุ (ค.ศ.)</Label>
+                <Label>ใบมรณะบัตร (รูปภาพ)</Label>
+                <div className="flex gap-2">
+                  <Input
+                    placeholder={
+                      isUploading
+                        ? "กำลังอัปโหลด..."
+                        : "ยังไม่ได้อัปโหลดรูปใบมรณะบัตร..."
+                    }
+                    value={
+                      formData.deathCertificateImage
+                        ? formData.deathCertificateImage.startsWith("http")
+                          ? "มีรูปภาพใบมรณะบัตรแล้ว"
+                          : formData.deathCertificateImage
+                        : ""
+                    }
+                    readOnly
+                    className="bg-gray-50"
+                  />
+                  <input
+                    type="file"
+                    ref={fileInputRef}
+                    className="hidden"
+                    accept="image/*"
+                    onChange={handleFileChange}
+                  />
+                  <div className="shrink-0">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="h-[42px] w-[42px] p-0 flex items-center justify-center border-gray-200"
+                      onClick={() => fileInputRef.current?.click()}
+                      title="อัปโหลดรูปใบมรณะบัตร"
+                      loading={isUploading}
+                    >
+                      <Upload size={18} />
+                    </Button>
+                  </div>
+                  {formData.deathCertificateImage &&
+                    formData.deathCertificateImage.startsWith("http") && (
+                      <a
+                        href={formData.deathCertificateImage}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="h-[42px] w-[42px] border border-gray-200 flex items-center justify-center rounded-md hover:bg-gray-50 text-blue-600 shrink-0"
+                        title="ดูรูปภาพใบมรณะบัตร"
+                      >
+                        <ImageIcon size={18} />
+                      </a>
+                    )}
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <Label>วันที่และเวลาบรรจุ (ค.ศ.)</Label>
                 <Input
-                  type="date"
+                  type="datetime-local"
                   value={
                     formData.burialDate
-                      ? dayjs(formData.burialDate).format("YYYY-MM-DD")
+                      ? dayjs(formData.burialDate).format("YYYY-MM-DDTHH:mm")
                       : ""
                   }
                   onChange={(e) =>
@@ -378,6 +494,191 @@ const DeceasedRegistry = () => {
                 </Button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Deceased Detail Modal */}
+      {isDetailOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div
+            className="bg-white w-full max-w-xl max-h-[90vh] rounded-xl overflow-hidden flex flex-col shadow-2xl animate-in zoom-in-95 duration-200"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="p-6 border-b border-[#eceeeb] flex justify-between items-center bg-[#003527] text-white">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 bg-white/10 rounded-md flex items-center justify-center text-white">
+                  <User size={24} />
+                </div>
+                <div>
+                  <h2 className="text-lg font-bold text-white">
+                    รายละเอียดผู้ล่วงลับ
+                  </h2>
+                  <p className="text-sm opacity-70 mt-0.5">
+                    {deceasedDetail?.plot ? (
+                      <span>หลุม {deceasedDetail.plot.plotNumber}</span>
+                    ) : (
+                      <span>ไม่ระบุตำแหน่ง</span>
+                    )}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsDetailOpen(false);
+                  setSelectedDeceasedId(null);
+                }}
+                className="p-2 hover:bg-white/10 rounded-full transition-colors text-white"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            {/* Body */}
+            <div className="flex-1 overflow-y-auto p-6 space-y-6">
+              {isLoadingDetail ? (
+                <div className="flex flex-col items-center justify-center py-20 space-y-3">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#003527]" />
+                  <p className="text-sm text-gray-500">
+                    กำลังโหลดรายละเอียด...
+                  </p>
+                </div>
+              ) : deceasedDetail ? (
+                <>
+                  {/* Deceased Info Card */}
+                  <div className="p-5 bg-gray-50 rounded-lg border border-gray-200 space-y-4">
+                    <p className="text-xs text-[#777] uppercase font-bold tracking-wider mb-1">
+                      ข้อมูลผู้ล่วงลับ
+                    </p>
+                    <div className="space-y-3">
+                      <div className="text-lg font-bold text-gray-900">
+                        {deceasedDetail.fullName}
+                      </div>
+
+                      <div className="flex items-start gap-8 mt-1.5 text-base text-gray-600">
+                        <div className="flex flex-col items-start text-gray-600 gap-1.5">
+                          <span className="flex items-center">
+                            อายุ:{" "}
+                            {deceasedDetail.age
+                              ? `${deceasedDetail.age} ปี`
+                              : "-"}
+                          </span>
+                          <span className="flex items-center gap-1">
+                            มรณบัตร:{" "}
+                            <a
+                              href={deceasedDetail.deathCertificateImage}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="flex items-center hover:underline cursor-pointer"
+                            >
+                              {deceasedDetail.deathCertificateNumber || "N/A"}
+                            </a>
+                          </span>
+                        </div>
+                        <div className="flex flex-col items-start text-gray-600 gap-1.5">
+                          <span className="flex items-cente">
+                            วันที่บรรจุ:{" "}
+                            {deceasedDetail.burialDate
+                              ? dayjs(deceasedDetail.burialDate).format(
+                                  "DD/MM/YYYY HH:mm",
+                                )
+                              : "-"}
+                          </span>
+                          <span className="flex items-center">
+                            ประเภทการบรรจุ:{" "}
+                            {deceasedDetail.burialType === "coffin"
+                              ? "โลงศพ"
+                              : "อัฐิ"}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Contact Info Card */}
+                  {deceasedDetail.contact ? (
+                    <div className="p-5 bg-gray-50 rounded-lg border border-gray-200 space-y-3.5">
+                      <p className="text-xs text-[#777] uppercase font-bold tracking-wider mb-1">
+                        ข้อมูลผู้ติดต่อ
+                      </p>
+                      <div className="space-y-2">
+                        <div className="text-lg font-bold text-gray-900">
+                          {deceasedDetail.contact.fullName}
+                        </div>
+                        <div className="flex items-start gap-4 mt-1.5 text-base text-gray-600">
+                          <div className="flex flex-col items-start text-gray-600 gap-1.5">
+                            <span className="flex items-center gap-1.5">
+                              <Phone size={15} className="text-gray-600" />
+                              {deceasedDetail.contact.phone || "N/A"}
+                            </span>
+                            <span className="flex items-center gap-1.5">
+                              <Mail size={15} className="text-gray-600" />
+                              {deceasedDetail.contact.email || "N/A"}
+                            </span>
+                          </div>
+                          <span className="flex items-start gap-1.5 min-w-0">
+                            <MapPin
+                              size={15}
+                              className="text-gray-600 shrink-0 mt-1"
+                            />
+                            <span className="whitespace-normal break-words">
+                              {deceasedDetail.contact.address || "N/A"}
+                            </span>
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="p-5 bg-gray-50 rounded-lg border border-gray-200 text-center text-sm text-gray-500 py-8">
+                      ไม่พบข้อมูลผู้ติดต่อ
+                    </div>
+                  )}
+
+                  <div className="space-y-3">
+                    <h3 className="text-sm font-bold text-gray-900 uppercase tracking-widest">
+                      ตำแหน่งที่บรรจุ (หลุมศพ)
+                    </h3>
+                    {deceasedDetail.plot ? (
+                      <div className="p-4 bg-white rounded-lg border border-gray-200 hover:border-gray-300 transition-colors flex justify-between items-center">
+                        <div>
+                          <p className="font-bold text-gray-900">
+                            หลุม {deceasedDetail.plot.plotNumber} (ซอย:{" "}
+                            {deceasedDetail.plot.zone || "-"})
+                          </p>
+                          {deceasedDetail.plot.contracts?.[0] && (
+                            <p className="text-base text-[#555] mt-1.5">
+                              หมายเลขสัญญา:{" "}
+                              {deceasedDetail.plot.contracts[0].contractNumber}
+                            </p>
+                          )}
+                        </div>
+                        <Button
+                          variant="outline"
+                          onClick={() => {
+                            setIsDetailOpen(false);
+                            navigate(`/plots/detail/${deceasedDetail.plot.id}`);
+                          }}
+                          className="h-8 text-xs font-semibold rounded-md border-gray-200 text-gray-700 hover:bg-gray-50"
+                        >
+                          <ExternalLink size={12} className="mr-1" />
+                          ดูรายละเอียดหลุม
+                        </Button>
+                      </div>
+                    ) : (
+                      <p className="text-sm text-gray-500 py-4 bg-gray-50 rounded-lg text-center border border-dashed border-gray-200">
+                        ยังไม่ได้ระบุตำแหน่งหลุมศพ
+                      </p>
+                    )}
+                  </div>
+                </>
+              ) : (
+                <div className="text-center py-20 text-gray-500 text-sm">
+                  ไม่พบข้อมูลรายละเอียดผู้ล่วงลับ
+                </div>
+              )}
+            </div>
           </div>
         </div>
       )}

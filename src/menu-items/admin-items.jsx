@@ -15,6 +15,7 @@ const adminItems = [
     title: 'แผงควบคุม',
     type: 'item',
     url: '/dashboard',
+    subUrls: [],
     icon: LayoutDashboard
   },
   {
@@ -22,6 +23,7 @@ const adminItems = [
     title: 'ผังหลุมศพ',
     type: 'item',
     url: '/plots',
+    subUrls: ['/plots/detail'],
     icon: Grid3X3
   },
   {
@@ -29,6 +31,7 @@ const adminItems = [
     title: 'ทะเบียนสมาชิก',
     type: 'item',
     url: '/members',
+    subUrls: ['/members/detail', '/members/add', '/members/edit'],
     icon: Users
   },
   {
@@ -36,6 +39,7 @@ const adminItems = [
     title: 'ทะเบียนผู้ล่วงลับ',
     type: 'item',
     url: '/deceased',
+    subUrls: ['/deceased/detail', '/deceased/add', '/deceased/edit'],
     icon: FileSearch
   },
   {
@@ -43,20 +47,15 @@ const adminItems = [
     title: 'จัดการเงินบริจาค',
     type: 'item',
     url: '/donations',
+    subUrls: ['/donations/detail', '/donations/add', '/donations/edit'],
     icon: Wallet
-  },
-  {
-    id: 'relocation',
-    title: 'บันทึกการเคลื่อนย้าย',
-    type: 'item',
-    url: '/relocation',
-    icon: MoveHorizontal
   },
   {
     id: 'staff',
     title: 'บริหารพนักงาน',
     type: 'item',
     url: '/staff',
+    subUrls: ['/staff/detail', '/staff/add', '/staff/edit'],
     icon: UserCog
   },
   {
@@ -64,6 +63,7 @@ const adminItems = [
     title: 'การตั้งค่าสมาคม',
     type: 'item',
     url: '/settings',
+    subUrls: ['/settings/detail', '/settings/edit'],
     icon: Building2
   }
 ];
