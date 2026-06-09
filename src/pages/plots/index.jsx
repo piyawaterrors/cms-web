@@ -71,6 +71,7 @@ const Plots = () => {
   const [relocationForm, setRelocationForm] = useState({
     toPlotId: "",
     note: "",
+    type: "internal",
   });
   const [plotForm, setPlotForm] = useState({
     plotNumber: "",
@@ -95,6 +96,7 @@ const Plots = () => {
     setRelocationForm({
       toPlotId: "",
       note: "",
+      type: "internal",
     });
     setShowRelocationModal(true);
   };
@@ -112,15 +114,17 @@ const Plots = () => {
   });
 
   const handleRelocateSubmit = () => {
-    if (!relocationForm.toPlotId) {
+    if (relocationForm.type === "internal" && !relocationForm.toPlotId) {
       addToast("กรุณาเลือกหลุมปลายทาง", "warning");
       return;
     }
     relocationMutation.mutate({
       deceasedId: selectedOccupant.id,
       fromPlotId: selectedPlot.id,
-      toPlotId: relocationForm.toPlotId,
-      note: relocationForm.note,
+      toPlotId: relocationForm.type === "external" ? null : relocationForm.toPlotId,
+      note: relocationForm.type === "external"
+        ? `[ย้ายออกภายนอกสมาคม] ${relocationForm.note || ""}`
+        : relocationForm.note,
     });
   };
 
@@ -173,6 +177,7 @@ const Plots = () => {
     onSuccess: () => {
       queryClient.invalidateQueries(["plots"]);
       setSelectedPlot(null);
+      setShowPlotModal(false);
       addToast("อัปเดตข้อมูลเรียบร้อยแล้ว", "success");
     },
   });
@@ -303,6 +308,8 @@ const Plots = () => {
       colSpan,
       type: "plot",
       status: "ว่าง",
+      isExempt: false,
+      isCommonPlot: false,
     });
     setSelectedPlot(null);
     setShowPlotModal(true);
@@ -315,6 +322,7 @@ const Plots = () => {
       setPlotForm(plot);
       setShowPlotModal(true);
     } else {
+      if (plot.type === "walkway") return;
       setQuickViewId(plot.id);
       setShowQuickView(true);
     }
@@ -351,9 +359,9 @@ const Plots = () => {
     column: data.column ? parseInt(data.column) : null,
     rowSpan: data.rowSpan ? parseInt(data.rowSpan) : 1,
     colSpan: data.colSpan ? parseInt(data.colSpan) : 1,
-    colSpan: data.colSpan ? parseInt(data.colSpan) : 1,
     type: data.type,
     isExempt: data.isExempt || false,
+    isCommonPlot: data.isCommonPlot || false,
   });
 
   const getStatusColor = (status) => {
@@ -386,7 +394,7 @@ const Plots = () => {
         <div className="flex items-center gap-4">
           <div>
             <h1 className="text-3xl font-bold text-[#111]">
-              ผังหลุม (Visual Map)
+              ผังหลุม
             </h1>
             <p className="text-base text-[#555]">
               จัดการและตรวจสอบสถานะหลุมบนแผนที่
@@ -541,13 +549,13 @@ const Plots = () => {
                   y={1}
                   width={plot.colSpan * GRID_SIZE - 2}
                   height={plot.rowSpan * GRID_SIZE - 2}
-                  fill={getStatusColor(plot.status)}
+                  fill={plot.type === "walkway" ? "#ffffff" : getStatusColor(plot.status)}
                   cornerRadius={4}
                   stroke={
                     selectedPlot?.id === plot.id ? "#003527" : "transparent"
                   }
                   strokeWidth={2}
-                  opacity={plot.type === "walkway" ? 0.3 : 1}
+                  opacity={1}
                 />
                 <Text
                   text={plot.plotNumber}
@@ -555,7 +563,13 @@ const Plots = () => {
                   height={plot.rowSpan * GRID_SIZE}
                   align="center"
                   verticalAlign="middle"
-                  fill="white"
+                  fill={
+                    plot.type === "walkway"
+                      ? "#111111"
+                      : plot.isExempt
+                        ? "black"
+                        : "white"
+                  }
                   fontSize={13}
                   fontStyle="bold"
                   listening={false}
@@ -599,13 +613,13 @@ const Plots = () => {
             className="bg-white w-full max-w-md rounded-xl overflow-hidden"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="p-6 border-b border-[#eceeeb] flex justify-between items-center bg-[#f8faf6]">
+            <div className="p-6 border-b border-gray-200 flex justify-between items-center bg-[#003527] text-white">
               <h2 className="text-lg font-bold">
                 {plotForm.id ? "แก้ไขหลุม" : "สร้างหลุมใหม่"}
               </h2>
               <button
                 onClick={() => setShowPlotModal(false)}
-                className="p-2 hover:bg-black/5 rounded-full"
+                className="p-2 hover:bg-white/10 rounded-full transition-colors"
               >
                 <XIcon size={20} />
               </button>
@@ -636,7 +650,14 @@ const Plots = () => {
                   <Label>ประเภท</Label>
                   <Select
                     value={plotForm.type}
-                    onChange={(val) => setPlotForm({ ...plotForm, type: val })}
+                    onChange={(val) => {
+                      const updates = { type: val };
+                      if (val === "walkway") {
+                        updates.isExempt = false;
+                        updates.isCommonPlot = false;
+                      }
+                      setPlotForm({ ...plotForm, ...updates });
+                    }}
                     options={[
                       { label: "หลุม", value: "plot" },
                       { label: "ทางเดิน", value: "walkway" },
@@ -644,34 +665,36 @@ const Plots = () => {
                   />
                 </div>
               </div>
-              <div className="space-y-2 pt-2">
-                <div className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    id="isExempt"
-                    checked={plotForm.isExempt}
-                    onChange={(e) =>
-                      setPlotForm({ ...plotForm, isExempt: e.target.checked })
-                    }
-                  />
-                  <Label htmlFor="isExempt">หลุมยกเว้น (Exempt)</Label>
+              {plotForm.type !== "walkway" && (
+                <div className="space-y-2 pt-2">
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      id="isExempt"
+                      checked={plotForm.isExempt}
+                      onChange={(e) =>
+                        setPlotForm({ ...plotForm, isExempt: e.target.checked })
+                      }
+                    />
+                    <Label htmlFor="isExempt">หลุมยกเว้น (Exempt)</Label>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      id="isCommonPlot"
+                      checked={plotForm.isCommonPlot}
+                      onChange={(e) =>
+                        setPlotForm({
+                          ...plotForm,
+                          isCommonPlot: e.target.checked,
+                        })
+                      }
+                    />
+                    <Label htmlFor="isCommonPlot">หลุมรวม (Common Plot)</Label>
+                  </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    id="isCommonPlot"
-                    checked={plotForm.isCommonPlot}
-                    onChange={(e) =>
-                      setPlotForm({
-                        ...plotForm,
-                        isCommonPlot: e.target.checked,
-                      })
-                    }
-                  />
-                  <Label htmlFor="isCommonPlot">หลุมรวม (Common Plot)</Label>
-                </div>
-              </div>
-              {plotForm.id && (
+              )}
+              {plotForm.id && plotForm.type !== "walkway" && (
                 <div className="p-3 bg-gray-50 rounded-lg border border-gray-200">
                   <p className="text-[10px] text-[#777] uppercase font-bold tracking-wider mb-1">
                     สถานะปัจจุบัน
@@ -683,8 +706,15 @@ const Plots = () => {
                         backgroundColor: getStatusColor(plotForm.status),
                       }}
                     />
-                    <span className="text-sm font-bold text-[#111] capitalize">
-                      {plotForm.status}
+                    <span className="text-sm font-bold text-[#111]">
+                      {plotStatuses.find((s) => s.key === plotForm.status)?.label ||
+                        ({
+                          available: "ว่าง",
+                          occupied: "บรรจุแล้ว",
+                          reserved: "จองแล้ว",
+                          expired: "หมดสัญญา",
+                          common: "หลุมรวม",
+                        }[plotForm.status] || plotForm.status)}
                     </span>
                   </div>
                 </div>
@@ -767,25 +797,67 @@ const Plots = () => {
                 </p>
               </div>
 
-              {/* Target Selection */}
+              {/* Relocation Type Selector */}
               <div className="space-y-2">
-                <Label required>เลือกหลุมปลายทาง</Label>
-                <Select
-                  value={relocationForm.toPlotId}
-                  onChange={(val) =>
-                    setRelocationForm({ ...relocationForm, toPlotId: val })
-                  }
-                  options={allPlots
-                    .filter(
-                      (p) => p.status === "ว่าง" || p.id === selectedPlot?.id,
-                    )
-                    .map((p) => ({
-                      label: `${p.plotNumber} (ซอย ${p.zone})`,
-                      value: p.id,
-                    }))}
-                  placeholder="ค้นหาหรือเลือกหลุมว่าง..."
-                />
+                <Label>ประเภทการย้าย</Label>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setRelocationForm({
+                        ...relocationForm,
+                        type: "internal",
+                      })
+                    }
+                    className={`flex-1 py-2 px-3 rounded-sm border text-xs font-semibold transition-all cursor-pointer ${
+                      relocationForm.type === "internal"
+                        ? "bg-[#003527] text-white border-[#003527]"
+                        : "bg-white text-gray-500 border-gray-200 hover:bg-gray-50"
+                    }`}
+                  >
+                    ย้ายภายในสุสาน
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setRelocationForm({
+                        ...relocationForm,
+                        type: "external",
+                        toPlotId: "",
+                      })
+                    }
+                    className={`flex-1 py-2 px-3 rounded-sm border text-xs font-semibold transition-all cursor-pointer ${
+                      relocationForm.type === "external"
+                        ? "bg-[#003527] text-white border-[#003527]"
+                        : "bg-white text-gray-500 border-gray-200 hover:bg-gray-50"
+                    }`}
+                  >
+                    ย้ายออกภายนอกสมาคม
+                  </button>
+                </div>
               </div>
+
+              {/* Target Selection */}
+              {relocationForm.type === "internal" && (
+                <div className="space-y-2 animate-in fade-in duration-200">
+                  <Label required>เลือกหลุมปลายทาง</Label>
+                  <Select
+                    value={relocationForm.toPlotId}
+                    onChange={(val) =>
+                      setRelocationForm({ ...relocationForm, toPlotId: val })
+                    }
+                    options={allPlots
+                      .filter(
+                        (p) => p.status === "ว่าง" || p.id === selectedPlot?.id,
+                      )
+                      .map((p) => ({
+                        label: `${p.plotNumber} (ซอย ${p.zone})`,
+                        value: p.id,
+                      }))}
+                    placeholder="ค้นหาหรือเลือกหลุมว่าง..."
+                  />
+                </div>
+              )}
 
               {/* Notes */}
               <div className="space-y-2">
@@ -909,38 +981,42 @@ const QuickViewModal = ({ id, onClose, onEdit, onRelocate }) => {
             </div>
           ) : activeTab === "current" ? (
             <div className="space-y-6">
-              {plot?.contracts?.[0]?.contractNumber && (
-                <div className="p-4 bg-[#003527]/5 rounded-md border border-[#003527]/10">
-                  <p className="text-sm font-bold text-[#003527] uppercase tracking-wider mb-1">
-                    หมายเลขสัญญา
-                  </p>
-                  <p className="text-xl font-bold text-[#003527] tracking-wider">
-                    {plot.contracts[0].contractNumber}
-                  </p>
-                </div>
+              {!plot?.isCommonPlot && (
+                <>
+                  {plot?.contracts?.[0]?.contractNumber && (
+                    <div className="p-4 bg-[#003527]/5 rounded-md border border-[#003527]/10">
+                      <p className="text-sm font-bold text-[#003527] uppercase tracking-wider mb-1">
+                        หมายเลขสัญญา
+                      </p>
+                      <p className="text-xl font-bold text-[#003527] tracking-wider">
+                        {plot.contracts[0].contractNumber}
+                      </p>
+                    </div>
+                  )}
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="p-4 bg-gray-50 rounded-md border border-gray-200">
+                      <p className="text-sm font-bold text-[#777] uppercase tracking-wider mb-1">
+                        วันเริ่มสัญญา
+                      </p>
+                      <p className="text-xl font-bold">
+                        {plot?.contracts?.[0]?.startDate
+                          ? dayjs(plot.contracts[0].startDate).format("DD/MM/YYYY")
+                          : "-"}
+                      </p>
+                    </div>
+                    <div className="p-4 bg-gray-50 rounded-md border border-gray-200">
+                      <p className="text-sm font-bold text-[#777] uppercase tracking-wider mb-1">
+                        วันสิ้นสุดสัญญา
+                      </p>
+                      <p className="text-xl font-bold">
+                        {plot?.contracts?.[0]?.endDate
+                          ? dayjs(plot.contracts[0].endDate).format("DD/MM/YYYY")
+                          : "-"}
+                      </p>
+                    </div>
+                  </div>
+                </>
               )}
-              <div className="grid grid-cols-2 gap-4">
-                <div className="p-4 bg-gray-50 rounded-md border border-gray-200">
-                  <p className="text-sm font-bold text-[#777] uppercase tracking-wider mb-1">
-                    วันเริ่มสัญญา
-                  </p>
-                  <p className="text-xl font-bold">
-                    {plot?.contracts?.[0]?.startDate
-                      ? dayjs(plot.contracts[0].startDate).format("DD/MM/YYYY")
-                      : "-"}
-                  </p>
-                </div>
-                <div className="p-4 bg-gray-50 rounded-md border border-gray-200">
-                  <p className="text-sm font-bold text-[#777] uppercase tracking-wider mb-1">
-                    วันสิ้นสุดสัญญา
-                  </p>
-                  <p className="text-xl font-bold">
-                    {plot?.contracts?.[0]?.endDate
-                      ? dayjs(plot.contracts[0].endDate).format("DD/MM/YYYY")
-                      : "-"}
-                  </p>
-                </div>
-              </div>
               <div className="space-y-3">
                 <h4 className="text-sm font-bold text-gray-900 uppercase tracking-widest">
                   รายชื่อผู้ติดต่อ
@@ -1072,9 +1148,9 @@ const QuickViewModal = ({ id, onClose, onEdit, onRelocate }) => {
             className="flex-1 bg-[#003527] hover:bg-[#004d39] text-white rounded-md flex items-center justify-center gap-2"
             onClick={onEdit}
           >
-            {plot?.status === "available"
-              ? "สร้างสัญญาใหม่"
-              : "ดูรายละเอียด / แก้ไข"}
+            {plot?.isCommonPlot || plot?.status !== "available"
+              ? "ดูรายละเอียด / แก้ไข"
+              : "สร้างสัญญาใหม่"}
             <ArrowRight size={16} />
           </Button>
         </div>

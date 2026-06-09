@@ -62,10 +62,8 @@ const Login = () => {
             <div className="p-8">
               {/* Logo Section */}
               <div className="flex flex-col items-center mb-8">
-                <div className="w-14 h-14 bg-[#003527] rounded-lg flex items-center justify-center mb-4 text-white shadow-md">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-8 h-8">
-                    <path d="M3 21h18" /><path d="M3 7v1a3 3 0 0 0 6 0V7m0 1a3 3 0 0 0 6 0V7m0 1a3 3 0 0 0 6 0V7H3" /><path d="M19 21v-4a2 2 0 0 0-2-2H7a2 2 0 0 0-2 2v4" /><path d="M9 21v-4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v4" />
-                  </svg>
+                <div className="w-14 h-14 rounded-lg overflow-hidden flex items-center justify-center mb-4 shadow-md">
+                  <img src="/logo.jpeg" alt="Logo" className="w-full h-full object-cover" />
                 </div>
                 <h1 className="text-2xl font-bold text-[#003527] mb-1">ระบบจัดการสุสาน</h1>
                 <p className="text-sm text-[#707974]">การจัดการที่ให้เกียรติและมั่นคง</p>
@@ -85,9 +83,9 @@ const Login = () => {
                 </div>
 
                 <div>
-                  <div className="flex justify-between items-center mb-1.5">
+                  <div className="flex justify-between items-center">
                     <Label htmlFor="password" className="mb-0">รหัสผ่าน</Label>
-                    <a href="#" className="text-xs font-medium text-[#003527] hover:underline">ลืมรหัสผ่าน?</a>
+                    {/* <a href="#" className="text-xs font-medium text-[#003527] hover:underline">ลืมรหัสผ่าน?</a> */}
                   </div>
                   <Input
                     id="password"
@@ -122,9 +120,9 @@ const Login = () => {
             </div>
 
             {/* Helper Link */}
-            <div className="bg-[#f2f4f1] py-4 px-8 text-center text-xs text-[#707974]">
+            {/* <div className="bg-[#f2f4f1] py-4 px-8 text-center text-xs text-[#707974]">
               ต้องการความช่วยเหลือ? <a href="#" className="font-bold text-[#003527] hover:underline">ติดต่อผู้ดูแลระบบ</a>
-            </div>
+            </div> */}
           </div>
         </div>
       </div>
@@ -132,19 +130,19 @@ const Login = () => {
       {/* Footer */}
       <div className="p-6 flex flex-col md:flex-row justify-between items-center text-[10px] text-[#707974] gap-4">
         <div className="flex items-center gap-2">
-          <span>© 2024 Cemetery Management System</span>
+          <span>© 2026 Cemetery Management System</span>
           <span className="opacity-30">•</span>
-          <a href="#" className="hover:text-[#003527]">นโยบายความเป็นส่วนตัว</a>
+          {/* <a href="#" className="hover:text-[#003527]">นโยบายความเป็นส่วนตัว</a> */}
         </div>
         <div className="flex items-center gap-4">
-          <div className="flex items-center gap-1.5 cursor-pointer hover:text-[#003527]">
+          {/* <div className="flex items-center gap-1.5 cursor-pointer hover:text-[#003527]">
             <Globe size={12} />
             <span>ภาษาไทย</span>
           </div>
           <div className="flex items-center gap-1.5 cursor-pointer hover:text-[#003527]">
             <HelpCircle size={12} />
             <span>ศูนย์ความช่วยเหลือ</span>
-          </div>
+          </div> */}
         </div>
       </div>
     </div>

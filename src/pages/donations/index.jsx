@@ -38,12 +38,13 @@ const Donations = () => {
   const { addToast } = useToast();
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
-  const [startYear, setStartYear] = useState(dayjs().year());
-  const [endYear, setEndYear] = useState(dayjs().year());
+  const [startYear, setStartYear] = useState("");
+  const [endYear, setEndYear] = useState("");
   const [page, setPage] = useState(1);
   const [limit] = useState(10);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingDonation, setEditingDonation] = useState(null);
+  const [selectedType, setSelectedType] = useState("");
 
   // Debounce Search
   useEffect(() => {
@@ -76,6 +77,7 @@ const Donations = () => {
   ];
 
   const donationTypeOptions = [
+    { label: "ค่าบำรุงรักษา", value: "maintenance" },
     { label: "บริจาคทั่วไป", value: "general" },
     { label: "ทำบุญตามเทศกาล", value: "festival" },
     { label: "อื่นๆ", value: "other" },
@@ -87,12 +89,21 @@ const Donations = () => {
   ];
 
   const { data, isLoading } = useQuery({
-    queryKey: ["donations", debouncedSearch, startYear, endYear, page, limit],
+    queryKey: [
+      "donations",
+      debouncedSearch,
+      startYear,
+      endYear,
+      selectedType,
+      page,
+      limit,
+    ],
     queryFn: async () => {
       const params = new URLSearchParams();
       if (debouncedSearch) params.append("search", debouncedSearch);
       if (startYear) params.append("startYear", startYear);
       if (endYear) params.append("endYear", endYear);
+      if (selectedType) params.append("type", selectedType);
       params.append("page", page);
       params.append("limit", limit);
       const res = await Get(`/donations?${params.toString()}`);
@@ -101,11 +112,12 @@ const Donations = () => {
   });
 
   const { data: summaryData } = useQuery({
-    queryKey: ["donation-summary", startYear, endYear],
+    queryKey: ["donation-summary", startYear, endYear, selectedType],
     queryFn: async () => {
       const params = new URLSearchParams();
       if (startYear) params.append("startYear", startYear);
       if (endYear) params.append("endYear", endYear);
+      if (selectedType) params.append("type", selectedType);
       const res = await Get(`/donations/summary?${params.toString()}`);
       return res.data;
     },
@@ -269,7 +281,7 @@ const Donations = () => {
           </div>
         </div>
 
-        <div className="lg:col-span-3">
+        <div className="lg:col-span-3 space-y-2">
           <div className="flex flex-col md:flex-row gap-4">
             <div className="flex-1 relative">
               <Input
@@ -306,6 +318,39 @@ const Donations = () => {
               </div>
             </div>
           </div>
+
+          {/* Segmented Control Filter */}
+          <div className="flex bg-[#f4f6f4] p-1 rounded-lg border border-[#eceeeb] gap-1 w-full md:w-auto md:inline-flex overflow-x-auto scrollbar-none">
+            <button
+              onClick={() => {
+                setSelectedType("");
+                setPage(1);
+              }}
+              className={`px-5 py-2 rounded-md text-sm font-semibold transition-all duration-200 shrink-0 ${
+                selectedType === ""
+                  ? "bg-[#003527] text-white shadow-sm font-bold"
+                  : "text-[#555] hover:text-[#003527] hover:bg-white/50"
+              }`}
+            >
+              ทั้งหมด
+            </button>
+            {donationTypeOptions.map((option) => (
+              <button
+                key={option.value}
+                onClick={() => {
+                  setSelectedType(option.value);
+                  setPage(1);
+                }}
+                className={`px-5 py-2 rounded-md text-sm font-semibold transition-all duration-200 shrink-0 ${
+                  selectedType === option.value
+                    ? "bg-[#003527] text-white shadow-sm font-bold"
+                    : "text-[#555] hover:text-[#003527] hover:bg-white/50"
+                }`}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
@@ -334,7 +379,7 @@ const Donations = () => {
                   วันที่
                 </th>
                 <th className="px-6 py-4 text-xs font-semibold text-[#555] uppercase text-center">
-                  สลิป
+                  หลักฐาน
                 </th>
                 <th className="px-6 py-4 text-xs font-semibold text-[#555] uppercase text-center">
                   จัดการ
@@ -417,7 +462,7 @@ const Donations = () => {
                           <ImageIcon size={16} />
                         </a>
                       ) : (
-                        <span className="text-xs text-gray-300">ไม่มีสลิป</span>
+                        <span className="text-xs text-gray-300">ไม่มีหลักฐาน</span>
                       )}
                     </td>
                     <td className="px-6 py-4">
@@ -434,6 +479,7 @@ const Donations = () => {
                           variant="outline"
                           onClick={() => openModal(donation)}
                           className="h-8 w-12 text-xs font-medium"
+                          title="แก้ไขข้อมูล"
                         >
                           <Pencil size={14} />
                         </Button>
@@ -441,6 +487,7 @@ const Donations = () => {
                           variant="outline"
                           className="h-8 w-12 p-0 flex items-center justify-center text-xs font-medium border-rose-200 text-rose-600 hover:bg-rose-600 hover:text-white rounded-md"
                           onClick={() => handleDelete(donation.id)}
+                          title="ลบข้อมูล"
                         >
                           <Trash2 size={14} />
                         </Button>
@@ -623,7 +670,7 @@ const Donations = () => {
               </div>
 
               <div className="space-y-1">
-                <Label>หลักฐานการโอน (รูปภาพสลิป)</Label>
+                <Label>หลักฐาน</Label>
                 <div className="flex gap-2">
                   <div className="flex-grow flex items-center min-h-[44px] px-1 overflow-hidden">
                     {formData.slipUrl ? (
@@ -646,7 +693,7 @@ const Donations = () => {
                       </a>
                     ) : (
                       <span className="text-sm text-gray-400 italic">
-                        ยังไม่ได้อัปโหลดรูปสลิป...
+                        ยังไม่ได้อัปโหลดหลักฐาน...
                       </span>
                     )}
                   </div>

@@ -12,6 +12,7 @@ import {
   Pencil,
   Upload,
   Image as ImageIcon,
+  Printer,
 } from "lucide-react";
 import { Get, Post, Update, Delete } from "@/services/https";
 import { useToast } from "@/contexts/ToastContext";
@@ -25,6 +26,8 @@ import DatePicker from "@/components/ui/DatePicker";
 import TimePicker from "@/components/ui/TimePicker";
 import DateTimePicker from "@/components/ui/DateTimePicker";
 import { compressImage } from "@/utils/imageCompressor";
+
+import { PrintService } from "@/services/print-service";
 
 const RELATIONSHIP_OPTIONS = [
   { label: "คู่สมรส", value: "คู่สมรส" },
@@ -77,6 +80,7 @@ const PlotDetail = () => {
     year: dayjs().year(),
     paymentDate: dayjs().format("YYYY-MM-DD"),
     paymentType: "cash",
+    type: "maintenance",
     notes: "",
     paymentProofImage: "",
   });
@@ -98,6 +102,14 @@ const PlotDetail = () => {
     },
   });
 
+  const { data: society } = useQuery({
+    queryKey: ["society-settings"],
+    queryFn: async () => {
+      const res = await Get("/society");
+      return res.data;
+    },
+  });
+
   const hasActiveContract = plot?.contracts?.some((c) => !c.isArchived);
   const hasDeceased = plot?.occupants?.some((o) => !o.isArchived);
 
@@ -106,7 +118,11 @@ const PlotDetail = () => {
       const activeContract = plot.contracts?.find((c) => !c.isArchived);
       const activeOccupants =
         plot.occupants?.filter((o) => !o.isArchived) || [];
-      const type = activeOccupants.length > 0 ? "occupied" : "reserved";
+      const type = plot.isCommonPlot
+        ? "occupied"
+        : activeOccupants.length > 0
+          ? "occupied"
+          : "reserved";
 
       const startDate =
         activeContract?.startDate || dayjs().format("YYYY-MM-DD");
@@ -155,6 +171,12 @@ const PlotDetail = () => {
       });
     }
   }, [plot]);
+
+  useEffect(() => {
+    if (plot?.isExempt && activeTab === "payments") {
+      setActiveTab("current");
+    }
+  }, [plot, activeTab]);
 
   const handlePaymentProofUpload = async (file) => {
     setIsUploadingPaymentProof(true);
@@ -219,7 +241,7 @@ const PlotDetail = () => {
   const saveBookingMutation = useMutation({
     mutationFn: (payload) => {
       // Validation
-      if (payload.type === "occupied") {
+      if (payload.type === "occupied" && !plot?.isCommonPlot) {
         const validDeceaseds = payload.deceaseds?.filter((d) =>
           d.fullName?.trim(),
         );
@@ -245,34 +267,37 @@ const PlotDetail = () => {
 
       // Check duplicates
       const contactNames = finalPayload.members.map((m) =>
-        m.fullName.trim().toLowerCase()
+        m.fullName.trim().toLowerCase(),
       );
       const hasDuplicateContacts = contactNames.some(
-        (name, idx) => contactNames.indexOf(name) !== idx
+        (name, idx) => contactNames.indexOf(name) !== idx,
       );
       if (hasDuplicateContacts) {
         throw new Error("ข้อมูลผู้ติดต่อต้องไม่ซ้ำกัน");
       }
 
       const deceasedNames = finalPayload.deceaseds.map((d) =>
-        d.fullName.trim().toLowerCase()
+        d.fullName.trim().toLowerCase(),
       );
       const hasDuplicateDeceaseds = deceasedNames.some(
-        (name, idx) => deceasedNames.indexOf(name) !== idx
+        (name, idx) => deceasedNames.indexOf(name) !== idx,
       );
       if (hasDuplicateDeceaseds) {
         throw new Error("ข้อมูลผู้ล่วงลับต้องไม่ซ้ำกัน");
       }
 
       const hasDuplicateBetween = contactNames.some((cName) =>
-        deceasedNames.includes(cName)
+        deceasedNames.includes(cName),
       );
       if (hasDuplicateBetween) {
         throw new Error("ผู้ติดต่อและผู้ล่วงลับต้องไม่เป็นคนเดียวกัน");
       }
 
-      const hasActiveContract = plot?.contracts?.some((c) => !c.isArchived);
-      return hasActiveContract
+      const isAlreadyBooked = plot?.isCommonPlot
+        ? plot?.members?.length > 0 || plot?.occupants?.length > 0
+        : plot?.contracts?.some((c) => !c.isArchived);
+
+      return isAlreadyBooked
         ? Update(`/plots/${id}/booking`, finalPayload)
         : Post(`/plots/${id}/book`, finalPayload);
     },
@@ -334,6 +359,23 @@ const PlotDetail = () => {
       );
     },
   });
+
+  const handlePrintPayment = (p) => {
+    const contract = plot?.contracts?.find((c) => c.id === p.contractId);
+    const donorName = contract?.member?.fullName || plot?.members?.[0]?.fullName || "ผู้ชำระเงิน";
+    const simulatedDonation = {
+      id: p.id,
+      donorName,
+      amount: Number(p.amount),
+      donationDate: p.paymentDate,
+      donationYear: p.year,
+      paymentMethod: p.paymentType,
+      type: p.type || "maintenance",
+      notes: p.notes,
+      receiptNo: p.receiptNo || null,
+    };
+    PrintService.printDonationReceipt(simulatedDonation, society);
+  };
 
   const deletePaymentMutation = useMutation({
     mutationFn: (paymentId) => Delete(`/plots/${id}/payments/${paymentId}`),
@@ -402,9 +444,7 @@ const PlotDetail = () => {
             <ArrowLeft size={24} />
           </button>
           <div>
-            <h1 className="text-2xl font-bold text-[#111]">
-              รายละเอียดสัญญา
-            </h1>
+            <h1 className="text-2xl font-bold text-[#111]">รายละเอียดสัญญา</h1>
             <p className="text-[#555] text-sm">
               หลุมหมายเลข:{" "}
               <span className="font-bold text-[#003527]">
@@ -460,105 +500,111 @@ const PlotDetail = () => {
 
       {/* Tabs */}
       <div className="flex border-b border-gray-200">
-        {["current", "history", "payments"].map((tab) => (
-          <button
-            key={tab}
-            onClick={() => setActiveTab(tab)}
-            className={`py-4 px-6 text-sm font-bold transition-all border-b-2 ${
-              activeTab === tab
-                ? "border-[#003527] text-[#003527]"
-                : "border-transparent text-[#555] hover:text-[#111]"
-            }`}
-          >
-            {tab === "current"
-              ? "ข้อมูลปัจจุบัน"
-              : tab === "history"
-                ? "ประวัติการทำรายการ"
-                : "ประวัติการชำระเงิน"}
-          </button>
-        ))}
+        {["current", "history", "payments"]
+          .filter((tab) => !(plot?.isExempt && tab === "payments"))
+          .map((tab) => (
+            <button
+              key={tab}
+              onClick={() => setActiveTab(tab)}
+              className={`py-4 px-6 text-sm font-bold transition-all border-b-2 ${
+                activeTab === tab
+                  ? "border-[#003527] text-[#003527]"
+                  : "border-transparent text-[#555] hover:text-[#111]"
+              }`}
+            >
+              {tab === "current"
+                ? "ข้อมูลปัจจุบัน"
+                : tab === "history"
+                  ? "ประวัติการทำรายการ"
+                  : "ประวัติการชำระเงิน"}
+            </button>
+          ))}
       </div>
 
       {activeTab === "current" ? (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <div className="space-y-6">
             {/* Booking Type */}
-            <div className="bg-white p-6 rounded-md border border-gray-200 space-y-6">
-              <div className="flex items-center gap-2 text-[#111] font-semibold">
-                เลือกประเภท
-              </div>
-              <div className="flex gap-4">
-                {["occupied", "reserved"].map((type) => (
-                  <button
-                    key={type}
-                    disabled={type === "reserved" && hasDeceased}
-                    onClick={() => {
-                      setBookingForm({
-                        ...bookingForm,
-                        type: type,
-                      });
-                    }}
-                    className={`flex-1 py-4 px-4 rounded-md border-2 transition-all flex flex-col items-center gap-1 ${
-                      bookingForm.type === type
-                        ? "border-[#003527] bg-[#f0fdf4] text-[#003527]"
-                        : type === "reserved" && hasDeceased
-                          ? "border-gray-50 bg-gray-50 text-[#bbb] cursor-not-allowed"
-                          : "border-gray-100 text-[#555] hover:bg-gray-50"
-                    }`}
-                  >
-                    <span className="font-bold text-base">
-                      {type === "occupied" ? "บรรจุ" : "ยังไม่บรรจุ"}
-                    </span>
-                    <span className="text-sm opacity-70 text-center">
-                      {type === "occupied"
-                        ? "ต้องระบุข้อมูลผู้ล่วงลับ"
-                        : "ต้องระบุข้อมูลผู้ติดต่อ"}
-                    </span>
-                  </button>
-                ))}
-              </div>
-
-              <div className="space-y-4 pt-4">
+            {!plot?.isCommonPlot && (
+              <div className="bg-white p-6 rounded-md border border-gray-200 space-y-6">
                 <div className="flex items-center gap-2 text-[#111] font-semibold">
-                  ข้อมูลการทำสัญญา
+                  เลือกประเภท
                 </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-1">
-                    <Label required>วันที่ทำสัญญา</Label>
-                    <DatePicker
-                      value={bookingForm.booking.startDate}
-                      disabled={hasActiveContract}
-                      className={
-                        hasActiveContract ? "bg-gray-50 cursor-not-allowed" : ""
-                      }
-                      onChange={(e) => {
-                        const start = e.target.value;
-                        const end = dayjs(start)
-                          .add(30, "year")
-                          .format("YYYY-MM-DD");
+                <div className="flex gap-4">
+                  {["occupied", "reserved"].map((type) => (
+                    <button
+                      key={type}
+                      disabled={type === "reserved" && hasDeceased}
+                      onClick={() => {
                         setBookingForm({
                           ...bookingForm,
-                          booking: { startDate: start, endDate: end },
+                          type: type,
                         });
                       }}
-                    />
+                      className={`flex-1 py-4 px-4 rounded-md border-2 transition-all flex flex-col items-center gap-1 ${
+                        bookingForm.type === type
+                          ? "border-[#003527] bg-[#f0fdf4] text-[#003527]"
+                          : type === "reserved" && hasDeceased
+                            ? "border-gray-50 bg-gray-50 text-[#bbb] cursor-not-allowed"
+                            : "border-gray-100 text-[#555] hover:bg-gray-50"
+                      }`}
+                    >
+                      <span className="font-bold text-base">
+                        {type === "occupied" ? "บรรจุ" : "ยังไม่บรรจุ"}
+                      </span>
+                      <span className="text-sm opacity-70 text-center">
+                        {type === "occupied"
+                          ? "ต้องระบุข้อมูลผู้ล่วงลับ"
+                          : "ต้องระบุข้อมูลผู้ติดต่อ"}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+
+                <div className="space-y-4 pt-4">
+                  <div className="flex items-center gap-2 text-[#111] font-semibold">
+                    ข้อมูลการทำสัญญา
                   </div>
-                  <div className="space-y-1">
-                    <Label>วันที่สิ้นสุด (30 ปี)</Label>
-                    <DatePicker
-                      value={bookingForm.booking.endDate}
-                      disabled
-                      className="bg-gray-50"
-                    />
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-1">
+                      <Label required>วันที่ทำสัญญา</Label>
+                      <DatePicker
+                        value={bookingForm.booking.startDate}
+                        disabled={hasActiveContract}
+                        className={
+                          hasActiveContract
+                            ? "bg-gray-50 cursor-not-allowed"
+                            : ""
+                        }
+                        onChange={(e) => {
+                          const start = e.target.value;
+                          const end = dayjs(start)
+                            .add(30, "year")
+                            .format("YYYY-MM-DD");
+                          setBookingForm({
+                            ...bookingForm,
+                            booking: { startDate: start, endDate: end },
+                          });
+                        }}
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label>วันที่สิ้นสุด (30 ปี)</Label>
+                      <DatePicker
+                        value={bookingForm.booking.endDate}
+                        disabled
+                        className="bg-gray-50"
+                      />
+                    </div>
                   </div>
                 </div>
               </div>
-            </div>
+            )}
 
             {/* Deceaseds */}
             {bookingForm.type === "occupied" && (
               <div className="bg-white p-6 rounded-md border border-gray-200 space-y-4">
-                <div className="flex items-center justify-between border-b border-gray-100 pb-2">
+                <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2 text-[111] font-semibold">
                     รายชื่อผู้ล่วงลับ
                   </div>
@@ -663,8 +709,21 @@ const PlotDetail = () => {
                           }}
                         />
                         {(() => {
-                          const isDuplicateDeceased = d.fullName?.trim() && bookingForm.deceaseds.some((dec, dIdx) => dIdx !== idx && dec.fullName?.trim().toLowerCase() === d.fullName?.trim().toLowerCase());
-                          const isSameAsContact = d.fullName?.trim() && bookingForm.members.some(m => m.fullName?.trim().toLowerCase() === d.fullName?.trim().toLowerCase());
+                          const isDuplicateDeceased =
+                            d.fullName?.trim() &&
+                            bookingForm.deceaseds.some(
+                              (dec, dIdx) =>
+                                dIdx !== idx &&
+                                dec.fullName?.trim().toLowerCase() ===
+                                  d.fullName?.trim().toLowerCase(),
+                            );
+                          const isSameAsContact =
+                            d.fullName?.trim() &&
+                            bookingForm.members.some(
+                              (m) =>
+                                m.fullName?.trim().toLowerCase() ===
+                                d.fullName?.trim().toLowerCase(),
+                            );
                           return (
                             <>
                               {isDuplicateDeceased && (
@@ -1009,7 +1068,7 @@ const PlotDetail = () => {
                       </span>
                     </label>
                   </div>
-                   <div className="space-y-1 relative">
+                  <div className="space-y-1 relative">
                     <Label required>ชื่อ-นามสกุล</Label>
                     <Input
                       value={member.fullName}
@@ -1031,8 +1090,21 @@ const PlotDetail = () => {
                     />
 
                     {(() => {
-                      const isDuplicateContact = member.fullName?.trim() && bookingForm.members.some((m, mIdx) => mIdx !== idx && m.fullName?.trim().toLowerCase() === member.fullName?.trim().toLowerCase());
-                      const isSameAsDeceased = member.fullName?.trim() && bookingForm.deceaseds?.some(d => d.fullName?.trim().toLowerCase() === member.fullName?.trim().toLowerCase());
+                      const isDuplicateContact =
+                        member.fullName?.trim() &&
+                        bookingForm.members.some(
+                          (m, mIdx) =>
+                            mIdx !== idx &&
+                            m.fullName?.trim().toLowerCase() ===
+                              member.fullName?.trim().toLowerCase(),
+                        );
+                      const isSameAsDeceased =
+                        member.fullName?.trim() &&
+                        bookingForm.deceaseds?.some(
+                          (d) =>
+                            d.fullName?.trim().toLowerCase() ===
+                            member.fullName?.trim().toLowerCase(),
+                        );
                       return (
                         <>
                           {isDuplicateContact && (
@@ -1057,9 +1129,16 @@ const PlotDetail = () => {
                             const query = (member.fullName || "")
                               .toLowerCase()
                               .trim();
-                            const filtered = (membersList || []).filter((m) =>
-                              m.fullName.toLowerCase().includes(query) &&
-                              !bookingForm.members.some((bm, bIdx) => bIdx !== idx && (bm.id === m.id || bm.fullName?.trim().toLowerCase() === m.fullName.trim().toLowerCase()))
+                            const filtered = (membersList || []).filter(
+                              (m) =>
+                                m.fullName.toLowerCase().includes(query) &&
+                                !bookingForm.members.some(
+                                  (bm, bIdx) =>
+                                    bIdx !== idx &&
+                                    (bm.id === m.id ||
+                                      bm.fullName?.trim().toLowerCase() ===
+                                        m.fullName.trim().toLowerCase()),
+                                ),
                             );
 
                             if (filtered.length === 0) {
@@ -1189,10 +1268,10 @@ const PlotDetail = () => {
           </div>
         </div>
       ) : (
-        <div className="bg-white rounded-md border border-gray-200 overflow-hidden">
+        <div className="bg-white rounded-xl border border-[#eceeeb] overflow-hidden shadow-sm">
           <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-white">
             <div>
-              <div className="flex items-center gap-2 font-bold text-[#111]">
+              <div className="flex items-center gap-2 font-semibold text-[#111]">
                 ประวัติการชำระเงินรายปี
               </div>
               <p className="text-sm text-gray-500">
@@ -1201,13 +1280,14 @@ const PlotDetail = () => {
             </div>
             {plot?.contracts?.length > 0 && (
               <Button
-                className="h-8 bg-[#003527] text-white rounded-md px-6"
+                className="h-8 bg-[#003527] text-white rounded-md px-6 animate-all duration-200 hover:bg-[#002219]"
                 onClick={() => {
                   setPaymentForm({
                     amount: "",
                     year: dayjs().year(),
                     paymentDate: dayjs().format("YYYY-MM-DD"),
                     paymentType: "cash",
+                    type: "maintenance",
                     notes: "",
                     paymentProofImage: "",
                   });
@@ -1221,41 +1301,44 @@ const PlotDetail = () => {
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-left">
-              <thead className="bg-gray-50 border-b border-gray-200">
+              <thead className="bg-gray-50 border-b border-gray-100">
                 <tr>
-                  <th className="px-6 py-3 text-xs font-bold text-[#777] uppercase tracking-wider">
+                  <th className="px-6 py-4 text-xs font-semibold text-[#555] uppercase">
                     ปีที่ชำระ
                   </th>
-                  <th className="px-6 py-3 text-xs font-bold text-[#777] uppercase tracking-wider">
+                  <th className="px-6 py-4 text-xs font-semibold text-[#555] uppercase text-right">
                     จำนวนเงิน
                   </th>
-                  <th className="px-6 py-3 text-xs font-bold text-[#777] uppercase tracking-wider">
+                  <th className="px-6 py-4 text-xs font-semibold text-[#555] uppercase">
                     วันที่ชำระ
                   </th>
-                  <th className="px-6 py-3 text-xs font-bold text-[#777] uppercase tracking-wider">
-                    ประเภท/หมายเหตุ
+                  <th className="px-6 py-4 text-xs font-semibold text-[#555] uppercase">
+                    ประเภท
                   </th>
-                  {/* <th className="px-6 py-3 text-xs font-bold text-[#777] uppercase tracking-wider">
-                    สถานะ
-                  </th> */}
-                  <th className="px-6 py-3 text-xs font-bold text-[#777] uppercase tracking-wider text-right">
+                  <th className="px-6 py-4 text-xs font-semibold text-[#555] uppercase text-center">
+                    หลักฐาน
+                  </th>
+                  <th className="px-6 py-4 text-xs font-semibold text-[#555] uppercase">
+                    หมายเหตุ
+                  </th>
+                  <th className="px-6 py-4 text-xs font-semibold text-[#555] uppercase text-center">
                     จัดการ
                   </th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-200">
+              <tbody className="divide-y divide-gray-50">
                 {plot?.contracts?.flatMap((c) => c.payments || []).length >
                 0 ? (
                   plot.contracts
                     .flatMap((c) => c.payments || [])
                     .sort((a, b) => b.year - a.year)
                     .map((p) => (
-                      <tr key={p.id} className="hover:bg-gray-50">
-                        <td className="px-6 py-4 text-sm font-bold text-[#111]">
+                      <tr key={p.id} className="hover:bg-gray-50/50 transition-colors">
+                        <td className="px-6 py-4 text-sm font-semibold text-[#111]">
                           พ.ศ. {p.year + 543}
                         </td>
-                        <td className="px-6 py-4 text-sm text-[#555]">
-                          {Number(p.amount).toLocaleString()} บาท
+                        <td className="px-6 py-4 text-sm text-right font-bold text-[#003527]">
+                          ฿{Number(p.amount).toLocaleString()}
                         </td>
                         <td className="px-6 py-4 text-sm text-[#555]">
                           {dayjs(p.paymentDate)
@@ -1263,40 +1346,59 @@ const PlotDetail = () => {
                             .format("DD/MM/YYYY")}
                         </td>
                         <td className="px-6 py-4">
-                          <div className="flex items-center gap-2">
-                            <div className="flex flex-col">
-                              <span className="text-sm font-medium text-gray-700">
-                                {p.paymentType === "cash"
-                                  ? "เงินสด"
-                                  : "เงินโอน"}
-                              </span>
-                              {p.notes && (
-                                <span className="text-xs text-[#999]">
-                                  {p.notes}
-                                </span>
-                              )}
-                            </div>
-                            {p.paymentProofImage && (
-                              <a
-                                href={p.paymentProofImage}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="p-1 hover:bg-gray-100 rounded text-blue-600 transition-colors shrink-0"
-                                title="ดูหลักฐานการชำระเงิน"
-                              >
-                                <ImageIcon size={16} />
-                              </a>
-                            )}
+                          <div className="flex flex-col">
+                            <span className="text-sm font-bold text-[#003527]">
+                              {p.type === "booking" && "ค่าจองหลุม"}
+                              {p.type === "renewal" && "ค่าต่ออายุ"}
+                              {(p.type === "maintenance" || !p.type) &&
+                                "ค่าบำรุงรายปี"}
+                            </span>
+                            <span className={`text-xs font-medium ${
+                              p.paymentType === "cash" ? "text-orange-700" : "text-blue-700"
+                            }`}>
+                              {p.paymentType === "cash" ? "เงินสด" : "เงินโอน"}
+                            </span>
                           </div>
                         </td>
-                        {/* <td className="px-6 py-4">
-                          <span className="px-2 py-1 rounded-full text-xs font-bold bg-green-50 text-green-700 border border-green-100 uppercase">
-                            {p.status}
-                          </span>
-                        </td> */}
-                        <td className="px-6 py-4 text-right">
-                          <div className="flex justify-end gap-2">
-                            <button
+                        <td className="px-6 py-4 text-center">
+                          {p.paymentProofImage ? (
+                            <a
+                              href={p.paymentProofImage}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center justify-center w-8 h-8 bg-blue-50 text-blue-600 rounded-sm hover:bg-blue-100 transition-colors"
+                              title="ดูหลักฐานการชำระเงิน"
+                            >
+                              <ImageIcon size={16} />
+                            </a>
+                          ) : (
+                            <span className="text-xs text-gray-300">
+                              ไม่มีหลักฐาน
+                            </span>
+                          )}
+                        </td>
+                        <td
+                          className="px-6 py-4 text-sm text-gray-600 max-w-[200px] truncate"
+                          title={p.notes || ""}
+                        >
+                          {p.notes
+                            ? p.notes.length > 30
+                              ? p.notes.substring(0, 30) + "..."
+                              : p.notes
+                            : "-"}
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="flex justify-center items-center gap-2">
+                            <Button
+                              variant="outline"
+                              onClick={() => handlePrintPayment(p)}
+                              className="h-8 w-12 text-xs font-medium"
+                              title="พิมพ์ใบเสร็จ"
+                            >
+                              <Printer size={14} />
+                            </Button>
+                            <Button
+                              variant="outline"
                               onClick={() => {
                                 setEditingPayment(p);
                                 setPaymentForm({
@@ -1306,17 +1408,19 @@ const PlotDetail = () => {
                                     "YYYY-MM-DD",
                                   ),
                                   paymentType: p.paymentType,
+                                  type: p.type || "maintenance",
                                   notes: p.notes || "",
                                   paymentProofImage: p.paymentProofImage || "",
                                 });
                                 setShowPaymentModal(true);
                               }}
-                              className="p-1 hover:bg-gray-100 rounded text-blue-600 transition-colors"
+                              className="h-8 w-12 text-xs font-medium"
                               title="แก้ไข"
                             >
                               <Pencil size={14} />
-                            </button>
-                            <button
+                            </Button>
+                            <Button
+                              variant="outline"
                               onClick={() => {
                                 if (
                                   window.confirm(
@@ -1326,11 +1430,11 @@ const PlotDetail = () => {
                                   deletePaymentMutation.mutate(p.id);
                                 }
                               }}
-                              className="p-1 hover:bg-gray-100 rounded text-red-600 transition-colors"
+                              className="h-8 w-12 text-xs font-medium text-red-600 hover:text-red-700 hover:bg-red-50 border-red-100"
                               title="ลบ"
                             >
                               <Trash2 size={14} />
-                            </button>
+                            </Button>
                           </div>
                         </td>
                       </tr>
@@ -1338,7 +1442,7 @@ const PlotDetail = () => {
                 ) : (
                   <tr>
                     <td
-                      colSpan="6"
+                      colSpan="7"
                       className="px-6 py-20 text-center text-[#999]"
                     >
                       ยังไม่มีประวัติการชำระเงิน
@@ -1469,7 +1573,11 @@ const PlotDetail = () => {
                     value={formatNumberWithCommas(paymentForm.amount)}
                     onChange={(e) => {
                       let clean = e.target.value.replace(/,/g, "");
-                      if (clean.startsWith("0") && clean.length > 1 && clean[1] !== ".") {
+                      if (
+                        clean.startsWith("0") &&
+                        clean.length > 1 &&
+                        clean[1] !== "."
+                      ) {
                         clean = clean.replace(/^0+/, "");
                         if (clean === "") clean = "0";
                       }
@@ -1495,7 +1603,36 @@ const PlotDetail = () => {
               </div>
 
               <div className="space-y-1">
-                <Label required>ประเภทการชำระ</Label>
+                <Label required>ประเภทค่าธรรมเนียม</Label>
+                <div className="flex gap-2">
+                  {[
+                    { label: "ค่าบำรุงรายปี", value: "maintenance" },
+                    { label: "ค่าต่ออายุ", value: "renewal" },
+                    { label: "ค่าจองหลุม", value: "booking" },
+                  ].map((fee) => (
+                    <button
+                      key={fee.value}
+                      type="button"
+                      onClick={() =>
+                        setPaymentForm({
+                          ...paymentForm,
+                          type: fee.value,
+                        })
+                      }
+                      className={`flex-1 py-2 px-3 rounded-sm border text-xs font-bold transition-all ${
+                        paymentForm.type === fee.value
+                          ? "bg-[#003527] text-white border-[#003527]"
+                          : "bg-white text-[#777] border-gray-200 hover:bg-gray-50"
+                      }`}
+                    >
+                      {fee.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <Label required>ช่องทางการชำระเงิน</Label>
                 <div className="flex gap-2">
                   {[
                     { label: "เงินสด", value: "cash" },
@@ -1503,6 +1640,7 @@ const PlotDetail = () => {
                   ].map((type) => (
                     <button
                       key={type.value}
+                      type="button"
                       onClick={() =>
                         setPaymentForm({
                           ...paymentForm,
