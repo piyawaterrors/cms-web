@@ -26,7 +26,13 @@ const SocietyConfig = () => {
     vicePresident: "",
     committees: "",
     address: "",
+    addressEn: "",
+    registrationNo: "",
+    taxId: "",
+    email: "",
+    payee: "",
     phone: "",
+    receiptNo: 0,
   });
 
   // ดึงข้อมูลเดิมจาก API
@@ -47,7 +53,13 @@ const SocietyConfig = () => {
         vicePresident: settings.vicePresident || "",
         committees: settings.committees || "",
         address: settings.address || "",
+        addressEn: settings.addressEn || "",
+        registrationNo: settings.registrationNo || "",
+        taxId: settings.taxId || "",
+        email: settings.email || "",
+        payee: settings.payee || "",
         phone: settings.phone || "",
+        receiptNo: settings.receiptNo !== undefined && settings.receiptNo !== null ? settings.receiptNo : 0,
       });
     }
   }, [settings]);
@@ -123,6 +135,31 @@ const SocietyConfig = () => {
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
+                <Label>เลขทะเบียนสมาคม / เลขที่</Label>
+                <Input
+                  value={formData.registrationNo}
+                  onChange={(e) =>
+                    setFormData({ ...formData, registrationNo: e.target.value })
+                  }
+                  placeholder="ระบุเลขที่ทะเบียนสมาคม"
+                  className="h-11"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>เลขประจำตัวผู้เสียภาษี</Label>
+                <Input
+                  value={formData.taxId}
+                  onChange={(e) =>
+                    setFormData({ ...formData, taxId: e.target.value })
+                  }
+                  placeholder="ระบุเลขประจำตัวผู้เสียภาษี"
+                  className="h-11"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
                 <Label className="flex items-center gap-2">ประธานสมาคม</Label>
                 <Input
                   value={formData.president}
@@ -162,6 +199,34 @@ const SocietyConfig = () => {
                 * รายชื่อนี้จะถูกนำไปใช้ในเอกสารและรายงานต่างๆ ของสมาคม
               </p>
             </div>
+
+             <div className="space-y-2">
+              <Label>ผู้รับเงิน</Label>
+              <Input
+                value={formData.payee}
+                onChange={(e) =>
+                  setFormData({ ...formData, payee: e.target.value })
+                }
+                placeholder="ระบุชื่อผู้รับเงิน (เช่น เหรัญญิก หรือ สมาคมฯ)"
+                className="h-11"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label>เลขที่ใบเสร็จล่าสุด</Label>
+              <Input
+                type="number"
+                value={formData.receiptNo}
+                onChange={(e) =>
+                  setFormData({ ...formData, receiptNo: parseInt(e.target.value) || 0 })
+                }
+                placeholder="ระบุเลขที่ใบเสร็จล่าสุด (เช่น 1000)"
+                className="h-11"
+              />
+              <p className="text-[11px] text-gray-400 italic">
+                * ระบบจะนำเลขนี้ไปบวกเพิ่มทีละ 1 เมื่อมีการสร้างรายการบริจาคเงินใหม่
+              </p>
+            </div>
           </div>
         </div>
 
@@ -173,13 +238,25 @@ const SocietyConfig = () => {
             </div>
 
             <div className="space-y-2">
-              <Label>ที่อยู่สมาคม</Label>
+              <Label>ที่อยู่ภาษาไทย</Label>
               <Textarea
                 value={formData.address}
                 onChange={(e) =>
                   setFormData({ ...formData, address: e.target.value })
                 }
-                placeholder="ระบุเลขที่ตั้ง, ตำบล, อำเภอ, จังหวัด..."
+                placeholder="ระบุที่อยู่เป็นภาษาไทย..."
+                className="min-h-[100px] resize-none"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label>ที่อยู่ภาษาอังกฤษ</Label>
+              <Textarea
+                value={formData.addressEn}
+                onChange={(e) =>
+                  setFormData({ ...formData, addressEn: e.target.value })
+                }
+                placeholder="ระบุที่อยู่เป็นภาษาอังกฤษ..."
                 className="min-h-[100px] resize-none"
               />
             </div>
@@ -188,11 +265,25 @@ const SocietyConfig = () => {
               <Label className="flex items-center gap-2">เบอร์โทรศัพท์</Label>
               <Input
                 value={formData.phone}
-                onChange={(e) =>
-                  setFormData({ ...formData, phone: e.target.value })
-                }
+                onChange={(e) => {
+                  const val = e.target.value.replace(/[^0-9]/g, "");
+                  setFormData({ ...formData, phone: val });
+                }}
                 maxLength={10}
                 placeholder="0XXXXXXXXX"
+                className="h-11"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label className="flex items-center gap-2">อีเมล</Label>
+              <Input
+                value={formData.email}
+                onChange={(e) =>
+                  setFormData({ ...formData, email: e.target.value })
+                }
+                type="email"
+                placeholder="example@email.com"
                 className="h-11"
               />
             </div>

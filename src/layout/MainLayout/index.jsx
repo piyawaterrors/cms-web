@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { Outlet, Link, useLocation, useNavigate } from "react-router-dom";
-import { LogOut, Menu, X, ChevronRight } from "lucide-react";
+import { LogOut, Menu, X, ChevronRight, Leaf } from "lucide-react";
 import menuItems from "../../menu-items";
 import Button from "@components/ui/Button";
 import { useToast } from "@contexts/ToastContext";
@@ -43,19 +43,8 @@ const MainLayout = () => {
         <div className="h-20 flex items-center justify-between px-6 border-b border-white/10 shrink-0">
           {(isSidebarOpen || !isSidebarOpen) && (
             <div className={`flex items-center gap-3 ${!isSidebarOpen && "md:hidden"}`}>
-              <div className="w-8 h-8 bg-white/10 rounded flex items-center justify-center">
-                <svg
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  className="w-5 h-5 text-emerald-400"
-                >
-                  <path d="M3 21h18" />
-                  <path d="M3 7v1a3 3 0 0 0 6 0V7m0 1a3 3 0 0 0 6 0V7m0 1a3 3 0 0 0 6 0V7H3" />
-                </svg>
+              <div className="w-8 h-8 rounded overflow-hidden flex items-center justify-center">
+                <img src="/logo.jpeg" alt="Logo" className="w-full h-full object-cover" />
               </div>
               {isSidebarOpen && (
                 <span className="font-bold text-sm tracking-tight">

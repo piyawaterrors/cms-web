@@ -10,6 +10,7 @@ const Button = ({
   icon: Icon,
   disabled = false,
   loading = false,
+  title,
   ...props
 }) => {
   const variants = {
@@ -28,6 +29,7 @@ const Button = ({
       onClick={onClick}
       disabled={isButtonDisabled}
       className={`
+        relative group/btn-tooltip
         flex items-center justify-center gap-2 transition-all duration-200
         cursor-pointer disabled:cursor-not-allowed disabled:opacity-50 disabled:grayscale-[0.5]
         ${className.includes('p-') ? '' : 'px-4 py-2.5'} 
@@ -42,6 +44,15 @@ const Button = ({
       {!loading && children}
       {loading && <span>กำลังทำรายการ...</span>}
       {!loading && Icon && <Icon size={18} strokeWidth={2} />}
+
+      {/* Custom Tooltip */}
+      {title && (
+        <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2.5 py-1.5 bg-[#003527] text-white text-[11px] font-medium rounded shadow-lg opacity-0 scale-95 pointer-events-none group-hover/btn-tooltip:opacity-100 group-hover/btn-tooltip:scale-100 transition-all duration-150 z-50 whitespace-nowrap border border-emerald-800/20">
+          {title}
+          {/* Arrow */}
+          <span className="absolute top-full left-1/2 -translate-x-1/2 -mt-1 border-[5px] border-transparent border-t-[#003527]" />
+        </span>
+      )}
     </button>
   );
 };

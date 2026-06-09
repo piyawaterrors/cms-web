@@ -16,6 +16,7 @@ import {
   User,
   Trash2,
   Mail,
+  Image as ImageIcon,
 } from "lucide-react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Get, Post, Update, Delete } from "@/services/https";
@@ -27,6 +28,13 @@ import Input from "@/components/ui/Input";
 import Label from "@/components/ui/Label";
 import Pagination from "@/components/ui/Pagination";
 import { useNavigate } from "react-router-dom";
+
+const donationTypeOptions = [
+  { label: "ค่าบำรุงรักษา", value: "maintenance" },
+  { label: "บริจาคทั่วไป", value: "general" },
+  { label: "ทำบุญตามเทศกาล", value: "festival" },
+  { label: "อื่นๆ", value: "other" },
+];
 
 const Members = () => {
   const navigate = useNavigate();
@@ -68,6 +76,13 @@ const Members = () => {
   const [memberToDelete, setMemberToDelete] = useState(null);
   const [selectedMemberId, setSelectedMemberId] = useState(null);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState("detail");
+
+  useEffect(() => {
+    if (!isDetailOpen) {
+      setActiveTab("detail");
+    }
+  }, [isDetailOpen]);
 
   const { data: memberDetail, isLoading: isLoadingDetail } = useQuery({
     queryKey: ["member", selectedMemberId],
@@ -77,6 +92,19 @@ const Members = () => {
       return res.data;
     },
     enabled: !!selectedMemberId,
+  });
+
+  const { data: memberDonations, isLoading: isLoadingDonations } = useQuery({
+    queryKey: ["memberDonations", memberDetail?.fullName],
+    queryFn: async () => {
+      if (!memberDetail?.fullName) return null;
+      const params = new URLSearchParams();
+      params.append("search", memberDetail.fullName);
+      params.append("limit", 100);
+      const res = await Get(`/donations?${params.toString()}`);
+      return res.data;
+    },
+    enabled: !!memberDetail?.fullName && isDetailOpen && activeTab === "donations",
   });
 
   const { data, isLoading } = useQuery({
@@ -232,13 +260,13 @@ const Members = () => {
           />
         </div>
         <div className="relative flex-1 w-full">
-          <Label>สถานะ</Label>
+          <Label>ประเภทสมาชิก</Label>
           <Select
             size="sm"
             options={[
               { value: "all", label: "ทั้งหมด" },
               { value: "true", label: "สมาชิกสมาคม" },
-              { value: "false", label: "ไม่ใช่สมาชิก" },
+              { value: "false", label: "ทั่วไป" },
             ]}
             value={memberFilter}
             onChange={setMemberFilter}
@@ -363,6 +391,7 @@ const Members = () => {
                             e.stopPropagation();
                             openModal(member);
                           }}
+                          title="แก้ไขข้อมูล"
                         >
                           <Pencil size={14} />
                         </Button>
@@ -373,6 +402,7 @@ const Members = () => {
                             e.stopPropagation();
                             triggerDelete(member);
                           }}
+                          title="ลบข้อมูล"
                         >
                           <Trash2 size={14} />
                         </Button>
@@ -628,6 +658,38 @@ const Members = () => {
               </button>
             </div>
 
+            {/* Tabs */}
+            <div className="flex border-b border-[#eceeeb] bg-[#f8faf6]">
+              <button
+                type="button"
+                onClick={() => setActiveTab("detail")}
+                className={`flex-1 py-3 text-center text-sm font-semibold transition-all relative ${
+                  activeTab === "detail"
+                    ? "text-[#003527] bg-white font-bold"
+                    : "text-gray-500 hover:text-[#003527] hover:bg-gray-100/30"
+                }`}
+              >
+                รายละเอียด
+                {activeTab === "detail" && (
+                  <div className="absolute bottom-0 left-0 right-0 h-[3px] bg-[#003527] rounded-t-full" />
+                )}
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab("donations")}
+                className={`flex-1 py-3 text-center text-sm font-semibold transition-all relative ${
+                  activeTab === "donations"
+                    ? "text-[#003527] bg-white font-bold"
+                    : "text-gray-500 hover:text-[#003527] hover:bg-gray-100/30"
+                }`}
+              >
+                การบริจาค
+                {activeTab === "donations" && (
+                  <div className="absolute bottom-0 left-0 right-0 h-[3px] bg-[#003527] rounded-t-full" />
+                )}
+              </button>
+            </div>
+
             {/* Body */}
             <div className="flex-1 overflow-y-auto p-6 space-y-6">
               {isLoadingDetail ? (
@@ -637,7 +699,7 @@ const Members = () => {
                     กำลังโหลดรายละเอียด...
                   </p>
                 </div>
-              ) : (
+              ) : activeTab === "detail" ? (
                 <>
                   {/* Personal Info Card */}
                   <div className="p-5 bg-gray-50 rounded-lg border border-gray-200 space-y-3.5">
@@ -744,10 +806,17 @@ const Members = () => {
                             <div className="flex justify-between items-start">
                               <div className="w-full">
                                 <div className="flex justify-between items-center w-full">
-                                  <p className="text-base font-bold text-gray-900">
-                                    {deceased.fullName} (
-                                    {deceased.relationship || "N/A"})
-                                  </p>
+                                  <div className="flex items-center gap-2">
+                                    <p className="text-base font-bold text-gray-900">
+                                      {deceased.fullName} (
+                                      {deceased.relationship || "N/A"})
+                                    </p>
+                                    {!!deceased.isArchived && (
+                                      <span className="inline-flex items-center gap-1.5 px-2 py-0.5 bg-rose-50 text-rose-600 border border-rose-100 rounded text-xs font-semibold">
+                                        ย้ายออก
+                                      </span>
+                                    )}
+                                  </div>
 
                                   {deceased.plot && (
                                     <div className="flex flex-row items-end text-gray-600">
@@ -836,6 +905,76 @@ const Members = () => {
                     </div>
                   </div>
                 </>
+              ) : (
+                <div className="space-y-4">
+                  {/* Summary card for member's donations */}
+                  <div className="p-4 bg-[#003527]/5 rounded-lg border border-[#003527]/20 flex justify-between items-center">
+                    <div>
+                      <p className="text-sm font-semibold text-[#003527]">ยอดบริจาครวมทั้งหมด</p>
+                      <p className="text-xs text-gray-500 mt-0.5">รายการบริจาคทั้งหมดของสมาชิกท่านนี้</p>
+                    </div>
+                    <div className="text-xl font-bold text-[#003527]">
+                      ฿{((memberDonations?.rows || []).reduce((sum, donation) => sum + Number(donation.amount), 0)).toLocaleString()}
+                    </div>
+                  </div>
+
+                  {/* Donation List */}
+                  {isLoadingDonations ? (
+                    <div className="flex flex-col items-center justify-center py-12 space-y-2">
+                      <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-[#003527]" />
+                      <p className="text-sm text-gray-500">กำลังโหลดประวัติการบริจาค...</p>
+                    </div>
+                  ) : (memberDonations?.rows || []).length === 0 ? (
+                    <div className="text-center py-12 bg-gray-50 rounded-lg border border-dashed border-gray-200">
+                      <p className="text-sm text-gray-500">ไม่พบประวัติการบริจาคของสมาชิกท่านนี้</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {(memberDonations?.rows || []).map((donation) => (
+                        <div
+                          key={donation.id}
+                          className="p-4 bg-white rounded-lg border border-gray-200 hover:border-gray-300 transition-colors flex justify-between items-center"
+                        >
+                          <div className="space-y-1">
+                            <div className="flex items-center gap-2">
+                              <span className="font-bold text-gray-900 text-sm">
+                                {donationTypeOptions.find((t) => t.value === donation.type)?.label || "ทั่วไป"}
+                              </span>
+                              {donation.donationYear && (
+                                <span className="text-xs px-2 py-0.5 bg-gray-100 text-gray-600 rounded">
+                                  ปี {donation.donationYear + 543}
+                                </span>
+                              )}
+                            </div>
+                            <div className="text-xs text-gray-500 space-y-0.5">
+                              <p>วันที่: {dayjs(donation.donationDate).add(543, "year").format("DD/MM/YYYY")}</p>
+                              <p>ช่องทาง: {donation.paymentMethod === "cash" ? "เงินสด" : "เงินโอน"}</p>
+                              {donation.notes && (
+                                <p className="italic text-gray-400">หมายเหตุ: {donation.notes}</p>
+                              )}
+                            </div>
+                          </div>
+                          <div className="text-right flex items-center gap-3">
+                            <span className="font-bold text-[#003527]">
+                              ฿{Number(donation.amount).toLocaleString()}
+                            </span>
+                            {donation.slipUrl && (
+                              <a
+                                href={donation.slipUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="p-1.5 bg-blue-50 text-blue-600 rounded hover:bg-blue-100 transition-colors flex items-center justify-center shrink-0"
+                                title="ดูสลิป"
+                              >
+                                <ImageIcon size={14} />
+                              </a>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
               )}
             </div>
 

@@ -39,6 +39,7 @@ const DeceasedRegistry = () => {
 
   const [searchTerm, setSearchTerm] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [deceasedFilter, setDeceasedFilter] = useState("all");
 
   const [page, setPage] = useState(1);
   const [limit] = useState(10);
@@ -66,11 +67,17 @@ const DeceasedRegistry = () => {
     return () => clearTimeout(handler);
   }, [searchTerm]);
 
+  // Reset page on filter change
+  useEffect(() => {
+    setPage(1);
+  }, [deceasedFilter]);
+
   const { data, isLoading } = useQuery({
-    queryKey: ["deceaseds", debouncedSearch, page, limit],
+    queryKey: ["deceaseds", debouncedSearch, deceasedFilter, page, limit],
     queryFn: async () => {
       const params = new URLSearchParams();
       if (debouncedSearch) params.append("search", debouncedSearch);
+      if (deceasedFilter) params.append("status", deceasedFilter);
       params.append("page", page);
       params.append("limit", limit);
       const res = await Get(`/deceaseds?${params.toString()}`);
@@ -189,6 +196,20 @@ const DeceasedRegistry = () => {
             />
           </div>
         </div>
+        <div className="relative flex-1 w-full">
+          <Label>สถานะ</Label>
+          <Select
+            size="sm"
+            options={[
+              { value: "all", label: "ทั้งหมด" },
+              { value: "active", label: "อยู่ในสุสาน" },
+              { value: "archived", label: "ย้ายออกแล้ว" },
+            ]}
+            value={deceasedFilter}
+            onChange={setDeceasedFilter}
+            className="border-gray-200 w-full md:w-48"
+          />
+        </div>
       </div>
 
       {/* Deceased Table */}
@@ -273,6 +294,10 @@ const DeceasedRegistry = () => {
                             </span>
                           </div>
                         </div>
+                      ) : deceased.isArchived ? (
+                        <span className="inline-flex items-center gap-1.5 px-2 py-0.5 bg-rose-50 text-rose-600 border border-rose-100 rounded text-xs font-semibold">
+                          ย้ายออก
+                        </span>
                       ) : (
                         <span className="text-xs text-gray-400">
                           ไม่ระบุตำแหน่ง
@@ -324,7 +349,7 @@ const DeceasedRegistry = () => {
                               navigate(`/plots/detail/${deceased.plotId}`);
                           }}
                           disabled={!deceased.plotId}
-                          title="ดูรายละเอียดหลุมศพ"
+                          title="ดูรายละเอียด"
                         >
                           <ExternalLink size={14} />
                         </Button>
@@ -335,7 +360,7 @@ const DeceasedRegistry = () => {
                             e.stopPropagation();
                             openModal(deceased);
                           }}
-                          title="แก้ไขข้อมูลผู้ล่วงลับ"
+                          title="แก้ไขข้อมูล"
                         >
                           <Pencil size={14} />
                         </Button>
@@ -665,6 +690,11 @@ const DeceasedRegistry = () => {
                           <ExternalLink size={12} className="mr-1" />
                           ดูรายละเอียดหลุม
                         </Button>
+                      </div>
+                    ) : deceasedDetail.isArchived ? (
+                      <div className="p-4 bg-rose-50 text-rose-600 border border-rose-100 rounded-lg flex flex-col gap-1">
+                        <p className="font-bold text-rose-700 text-sm">ย้ายออก (ภายนอกสมาคม)</p>
+                        <p className="text-xs">ผู้ล่วงลับนี้ได้รับการย้ายออกนอกสมาคมแล้ว</p>
                       </div>
                     ) : (
                       <p className="text-sm text-gray-500 py-4 bg-gray-50 rounded-lg text-center border border-dashed border-gray-200">

@@ -13,6 +13,8 @@ dist-ssr
 *.local
 
 *.env
+*สมาคมสุสานพัทยา_Database by Saisuphan Bunnag.xlsx
+*สุสาน_Receipt_new version.xlsx - Receipt.pdf
 
 # Editor directories and files
 .vscode/*

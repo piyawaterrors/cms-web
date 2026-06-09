@@ -12,7 +12,7 @@ import {
 const adminItems = [
   {
     id: 'dashboard',
-    title: 'แผงควบคุม',
+    title: 'แดชบอร์ด',
     type: 'item',
     url: '/dashboard',
     subUrls: [],
