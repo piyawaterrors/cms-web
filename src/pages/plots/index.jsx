@@ -161,9 +161,9 @@ const Plots = () => {
 
   // Unique Zones
   const zones = useMemo(() => {
-    const unique = [...new Set(plots.map((p) => p.zone).filter(Boolean))];
+    const unique = [...new Set(allPlots.map((p) => p.zone).filter(Boolean))];
     return ["all", ...unique];
-  }, [plots]);
+  }, [allPlots]);
 
   // Mutations
   const updatePlotMutation = useMutation({
