@@ -72,7 +72,7 @@ const HistoryItem = ({ log }) => {
                 {getActionTypeLabel(log.actionType)}
               </span>
               <span className="text-sm text-gray-600 uppercase font-medium">
-                {dayjs(log.createdAt).format("DD/MM/YYYY HH:mm")}
+                {dayjs(log.createdAt).add(543, "year").format("DD/MM/YYYY HH:mm")}
               </span>
             </div>
             {log.createdByName && (
@@ -151,7 +151,7 @@ const HistoryItem = ({ log }) => {
                               <p className="text-base text-gray-600">
                                 บรรจุเมื่อ:{" "}
                                 {o.burialDate
-                                  ? dayjs(o.burialDate).format(
+                                  ? dayjs(o.burialDate).add(543, "year").format(
                                       "DD/MM/YYYY HH:mm",
                                     )
                                   : "N/A"}

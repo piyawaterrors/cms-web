@@ -97,6 +97,7 @@ const Plots = () => {
       toPlotId: "",
       note: "",
       type: "internal",
+      burialType: occupant.burialType || "coffin",
     });
     setShowRelocationModal(true);
   };
@@ -125,6 +126,7 @@ const Plots = () => {
       note: relocationForm.type === "external"
         ? `[ย้ายออกภายนอกสมาคม] ${relocationForm.note || ""}`
         : relocationForm.note,
+      burialType: relocationForm.type === "external" ? undefined : relocationForm.burialType,
     });
   };
 
@@ -839,23 +841,39 @@ const Plots = () => {
 
               {/* Target Selection */}
               {relocationForm.type === "internal" && (
-                <div className="space-y-2 animate-in fade-in duration-200">
-                  <Label required>เลือกหลุมปลายทาง</Label>
-                  <Select
-                    value={relocationForm.toPlotId}
-                    onChange={(val) =>
-                      setRelocationForm({ ...relocationForm, toPlotId: val })
-                    }
-                    options={allPlots
-                      .filter(
-                        (p) => p.status === "ว่าง" || p.id === selectedPlot?.id,
-                      )
-                      .map((p) => ({
-                        label: `${p.plotNumber} (ซอย ${p.zone})`,
-                        value: p.id,
-                      }))}
-                    placeholder="ค้นหาหรือเลือกหลุมว่าง..."
-                  />
+                <div className="space-y-4 animate-in fade-in duration-200">
+                  <div className="space-y-2">
+                    <Label required>เลือกหลุมปลายทาง</Label>
+                    <Select
+                      searchable
+                      value={relocationForm.toPlotId}
+                      onChange={(val) =>
+                        setRelocationForm({ ...relocationForm, toPlotId: val })
+                      }
+                      options={allPlots
+                        .filter(
+                          (p) => p.type === "plot" && (p.status === "available" || p.id === selectedPlot?.id),
+                        )
+                        .map((p) => ({
+                          label: `${p.plotNumber} (ซอย ${p.zone})`,
+                          value: p.id,
+                        }))}
+                      placeholder="ค้นหาหรือเลือกหลุมว่าง..."
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label required>ประเภทการบรรจุ</Label>
+                    <Select
+                      value={relocationForm.burialType}
+                      onChange={(val) =>
+                        setRelocationForm({ ...relocationForm, burialType: val })
+                      }
+                      options={[
+                        { label: "โลงศพ", value: "coffin" },
+                        { label: "อัฐิ", value: "ashes" },
+                      ]}
+                    />
+                  </div>
                 </div>
               )}
 
@@ -1000,7 +1018,7 @@ const QuickViewModal = ({ id, onClose, onEdit, onRelocate }) => {
                       </p>
                       <p className="text-xl font-bold">
                         {plot?.contracts?.[0]?.startDate
-                          ? dayjs(plot.contracts[0].startDate).format("DD/MM/YYYY")
+                          ? dayjs(plot.contracts[0].startDate).add(543, "year").format("DD/MM/YYYY")
                           : "-"}
                       </p>
                     </div>
@@ -1010,7 +1028,7 @@ const QuickViewModal = ({ id, onClose, onEdit, onRelocate }) => {
                       </p>
                       <p className="text-xl font-bold">
                         {plot?.contracts?.[0]?.endDate
-                          ? dayjs(plot.contracts[0].endDate).format("DD/MM/YYYY")
+                          ? dayjs(plot.contracts[0].endDate).add(543, "year").format("DD/MM/YYYY")
                           : "-"}
                       </p>
                     </div>

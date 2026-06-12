@@ -27,7 +27,7 @@ import TimePicker from "@/components/ui/TimePicker";
 import DateTimePicker from "@/components/ui/DateTimePicker";
 import { compressImage } from "@/utils/imageCompressor";
 
-import { PrintService } from "@/services/print-service";
+import { PrintDialog } from "@/components/ui/PrintDialog";
 
 const RELATIONSHIP_OPTIONS = [
   { label: "คู่สมรส", value: "คู่สมรส" },
@@ -84,6 +84,7 @@ const PlotDetail = () => {
     notes: "",
     paymentProofImage: "",
   });
+  const [printTarget, setPrintTarget] = useState(null);
 
   const { data: plot, isLoading } = useQuery({
     queryKey: ["plot", id],
@@ -110,12 +111,12 @@ const PlotDetail = () => {
     },
   });
 
-  const hasActiveContract = plot?.contracts?.some((c) => !c.isArchived);
+  const hasActiveContract = plot?.contracts?.some((c) => c.status === "active");
   const hasDeceased = plot?.occupants?.some((o) => !o.isArchived);
 
   useEffect(() => {
     if (plot) {
-      const activeContract = plot.contracts?.find((c) => !c.isArchived);
+      const activeContract = plot.contracts?.find((c) => c.status === "active");
       const activeOccupants =
         plot.occupants?.filter((o) => !o.isArchived) || [];
       const type = plot.isCommonPlot
@@ -295,7 +296,7 @@ const PlotDetail = () => {
 
       const isAlreadyBooked = plot?.isCommonPlot
         ? plot?.members?.length > 0 || plot?.occupants?.length > 0
-        : plot?.contracts?.some((c) => !c.isArchived);
+        : plot?.contracts?.some((c) => c.status === "active");
 
       return isAlreadyBooked
         ? Update(`/plots/${id}/booking`, finalPayload)
@@ -374,7 +375,7 @@ const PlotDetail = () => {
       notes: p.notes,
       receiptNo: p.receiptNo || null,
     };
-    PrintService.printDonationReceipt(simulatedDonation, society);
+    setPrintTarget({ donation: simulatedDonation, plotNumber: plot?.plotNumber });
   };
 
   const deletePaymentMutation = useMutation({
@@ -1753,6 +1754,15 @@ const PlotDetail = () => {
             </div>
           </div>
         </div>
+      )}
+      {/* ── Print Dialog ── */}
+      {printTarget && society && (
+        <PrintDialog
+          donation={printTarget.donation}
+          society={society}
+          plotNumber={printTarget.plotNumber}
+          onClose={() => setPrintTarget(null)}
+        />
       )}
     </div>
   );

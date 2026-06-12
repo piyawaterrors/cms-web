@@ -9,8 +9,10 @@ const Select = ({
   icon: Icon,
   className = "",
   label,
+  searchable = false,
 }) => {
   const [isOpen, setIsOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
   const selectRef = useRef(null);
 
   // ปิด Dropdown เมื่อคลิกข้างนอก
@@ -25,6 +27,18 @@ const Select = ({
   }, []);
 
   const selectedOption = options.find((opt) => opt.value === value);
+
+  const filteredOptions = searchable
+    ? options.filter((opt) =>
+        opt.label.toLowerCase().includes(searchTerm.toLowerCase())
+      )
+    : options;
+
+  useEffect(() => {
+    if (!isOpen) {
+      setSearchTerm("");
+    }
+  }, [isOpen]);
 
   const handleSelect = (option) => {
     onChange(option.value);
@@ -46,17 +60,29 @@ const Select = ({
           ${Icon ? "pl-10" : ""}
         `}
       >
-        <div className="flex items-center gap-2 overflow-hidden">
+        <div className="flex items-center gap-2 overflow-hidden flex-1">
           {Icon && (
             <div className="absolute left-3 top-1/2 -translate-y-1/2 text-[#777]">
               <Icon size={20} strokeWidth={2} />
             </div>
           )}
-          <span
-            className={`truncate text-base ${!selectedOption ? "text-[#999]" : "text-[#111]"}`}
-          >
-            {selectedOption ? selectedOption.label : placeholder}
-          </span>
+          {searchable && isOpen ? (
+            <input
+              type="text"
+              autoFocus
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder="พิมพ์เพื่อค้นหา..."
+              className="w-full outline-none text-base bg-transparent placeholder-[#999]"
+              onClick={(e) => e.stopPropagation()}
+            />
+          ) : (
+            <span
+              className={`truncate text-base ${!selectedOption ? "text-[#999]" : "text-[#111]"}`}
+            >
+              {selectedOption ? selectedOption.label : placeholder}
+            </span>
+          )}
         </div>
         <ChevronDown
           size={18}
@@ -68,7 +94,7 @@ const Select = ({
       {isOpen && (
         <div className="absolute z-[110] w-full mt-1.5 bg-white border border-[#d1d5db] rounded-lg overflow-hidden shadow-lg animate-in fade-in zoom-in-95 duration-100">
           <div className="max-h-60 overflow-y-auto py-1">
-            {options.map((option) => (
+            {filteredOptions.map((option) => (
               <div
                 key={option.value}
                 onClick={() => handleSelect(option)}
@@ -85,7 +111,7 @@ const Select = ({
                 {value === option.value && <Check size={14} />}
               </div>
             ))}
-            {options.length === 0 && (
+            {filteredOptions.length === 0 && (
               <div className="px-4 py-3 text-sm text-[#999] text-center">
                 ไม่มีข้อมูล
               </div>

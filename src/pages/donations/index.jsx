@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import dayjs from "dayjs";
-import { PrintService } from "@/services/print-service";
 import {
   Plus,
   Pencil,
@@ -23,6 +22,7 @@ import Pagination from "@/components/ui/Pagination";
 import Autocomplete from "@/components/ui/Autocomplete";
 import Textarea from "@/components/ui/Textarea";
 import DatePicker from "@/components/ui/DatePicker";
+import { PrintDialog } from "@/components/ui/PrintDialog";
 import { compressImage } from "@/utils/imageCompressor";
 
 const formatNumberWithCommas = (val) => {
@@ -45,6 +45,7 @@ const Donations = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingDonation, setEditingDonation] = useState(null);
   const [selectedType, setSelectedType] = useState("");
+  const [printTarget, setPrintTarget] = useState(null);
 
   // Debounce Search
   useEffect(() => {
@@ -78,6 +79,7 @@ const Donations = () => {
 
   const donationTypeOptions = [
     { label: "ค่าบำรุงรักษา", value: "maintenance" },
+    { label: "ค่าปรับสัญญา", value: "penalty" },
     { label: "บริจาคทั่วไป", value: "general" },
     { label: "ทำบุญตามเทศกาล", value: "festival" },
     { label: "อื่นๆ", value: "other" },
@@ -163,7 +165,7 @@ const Donations = () => {
   });
 
   const handlePrint = (donation) => {
-    PrintService.printDonationReceipt(donation, society);
+    setPrintTarget(donation);
   };
 
   const openModal = (donation = null) => {
@@ -755,6 +757,15 @@ const Donations = () => {
             </form>
           </div>
         </div>
+      )}
+
+      {/* ── Print Dialog ── */}
+      {printTarget && society && (
+        <PrintDialog
+          donation={printTarget}
+          society={society}
+          onClose={() => setPrintTarget(null)}
+        />
       )}
     </div>
   );
