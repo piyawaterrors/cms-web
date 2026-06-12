@@ -9,8 +9,10 @@ import {
   Save,
   ShieldCheck,
   Info,
+  Upload,
+  X,
 } from "lucide-react";
-import { Get, Update } from "@/services/https";
+import { Get, Update, Post } from "@/services/https";
 import { useToast } from "@/contexts/ToastContext";
 import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
@@ -31,9 +33,12 @@ const SocietyConfig = () => {
     taxId: "",
     email: "",
     payee: "",
+    signatureUrl: "",
     phone: "",
     receiptNo: 0,
   });
+
+  const [isUploadingSignature, setIsUploadingSignature] = useState(false);
 
   // ดึงข้อมูลเดิมจาก API
   const { data: settings, isLoading } = useQuery({
@@ -58,11 +63,38 @@ const SocietyConfig = () => {
         taxId: settings.taxId || "",
         email: settings.email || "",
         payee: settings.payee || "",
+        signatureUrl: settings.signatureUrl || "",
         phone: settings.phone || "",
         receiptNo: settings.receiptNo !== undefined && settings.receiptNo !== null ? settings.receiptNo : 0,
       });
     }
   }, [settings]);
+
+  const handleSignatureUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.match(/^image\/(jpeg|png|webp)$/)) {
+      addToast("กรุณาเลือกไฟล์รูปภาพ (JPG, PNG, WebP) เท่านั้น", "error");
+      return;
+    }
+
+    const data = new FormData();
+    data.append("file", file);
+
+    setIsUploadingSignature(true);
+    try {
+      const res = await Post("/society/upload-signature", data);
+      if (res.url) {
+        setFormData((prev) => ({ ...prev, signatureUrl: res.url }));
+        addToast("อัปโหลดลายเซ็นสำเร็จ", "success");
+      }
+    } catch (error) {
+      addToast(error.message || "อัปโหลดรูปล้มเหลว", "error");
+    } finally {
+      setIsUploadingSignature(false);
+    }
+  };
 
   const mutation = useMutation({
     mutationFn: (data) => Update("/society", data),
@@ -117,7 +149,7 @@ const SocietyConfig = () => {
         {/* Left Column: Basic Info */}
         <div className="md:col-span-2 space-y-6">
           <div className="bg-white p-6 rounded-lg border border-[#eceeeb] space-y-4">
-            <div className="flex items-center gap-2 text-[#003527] font-semibold border-b border-gray-200 pb-2">
+            <div className="flex items-center gap-2 text-[#003527] font-semibold">
               ข้อมูลทั่วไป
             </div>
 
@@ -160,7 +192,7 @@ const SocietyConfig = () => {
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label className="flex items-center gap-2">ประธานสมาคม</Label>
+                <Label className="flex items-center gap-2">นายกสมาคม</Label>
                 <Input
                   value={formData.president}
                   onChange={(e) =>
@@ -172,7 +204,7 @@ const SocietyConfig = () => {
               </div>
               <div className="space-y-2">
                 <Label className="flex items-center gap-2">
-                  รองประธานสมาคม
+                  รองนายกสมาคม
                 </Label>
                 <Input
                   value={formData.vicePresident}
@@ -213,6 +245,36 @@ const SocietyConfig = () => {
             </div>
 
             <div className="space-y-2">
+              <Label>ลายเซ็นผู้รับเงิน</Label>
+              <div className="flex flex-col gap-3">
+                {formData.signatureUrl ? (
+                  <div className="relative inline-block w-48 h-24 border border-gray-200 rounded bg-gray-50 overflow-hidden group">
+                    <img src={formData.signatureUrl} alt="Signature" className="w-full h-full object-contain" />
+                    <button
+                      type="button"
+                      onClick={() => setFormData({ ...formData, signatureUrl: "" })}
+                      className="absolute top-1 right-1 bg-red-500 text-white p-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                    >
+                      <X size={14} />
+                    </button>
+                  </div>
+                ) : (
+                  <label className={`flex flex-col items-center justify-center w-full h-24 border-2 border-dashed rounded-lg cursor-pointer bg-gray-50 hover:bg-gray-100 ${isUploadingSignature ? 'opacity-50 pointer-events-none' : ''}`}>
+                    <div className="flex flex-col items-center justify-center pt-5 pb-6 text-gray-500">
+                      {isUploadingSignature ? (
+                        <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-gray-500 mb-2" />
+                      ) : (
+                        <Upload size={20} className="mb-2" />
+                      )}
+                      <p className="text-xs font-semibold">{isUploadingSignature ? 'กำลังอัปโหลด...' : 'คลิกเพื่ออัปโหลดลายเซ็น'}</p>
+                    </div>
+                    <input type="file" className="hidden" accept="image/jpeg,image/png,image/webp" onChange={handleSignatureUpload} />
+                  </label>
+                )}
+              </div>
+            </div>
+
+            <div className="space-y-2">
               <Label>เลขที่ใบเสร็จล่าสุด</Label>
               <Input
                 type="number"
@@ -233,7 +295,7 @@ const SocietyConfig = () => {
         {/* Right Column: Contact Info */}
         <div className="space-y-6">
           <div className="bg-white p-6 rounded-lg border border-[#eceeeb] space-y-4">
-            <div className="flex items-center gap-2 text-[#003527] font-semibold border-b border-gray-200 pb-2">
+            <div className="flex items-center gap-2 text-[#003527] font-semibold">
               ข้อมูลติดต่อ
             </div>
 

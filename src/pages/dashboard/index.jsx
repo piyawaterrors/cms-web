@@ -51,10 +51,18 @@ const Dashboard = () => {
 
   const stats = dashboardData?.stats || {
     deceasedCount: 0,
+    deceasedCoffinCount: 0,
+    deceasedAshesCount: 0,
     associationMemberCount: 0,
     generalContactCount: 0,
     totalPlotsCount: 0,
-    availablePlotsCount: 0,
+    plotStatusCounts: {
+      available: 0,
+      occupied: 0,
+      reserved: 0,
+      expired: 0,
+      exempt: 0
+    },
     nearExpiryCount: 0,
   };
 
@@ -110,61 +118,114 @@ const Dashboard = () => {
 
       {/* KPI Cards Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        {/* Metric 1 */}
-        <div className="bg-white p-6 rounded-xl border border-[#eceeeb] shadow-sm flex items-center justify-between hover:shadow-md hover:border-gray-300 transition-all">
-          <div className="space-y-1">
-            <p className="text-sm font-semibold text-gray-500">ข้อมูลหลุมทั้งหมด</p>
-            <p className="text-3xl font-extrabold text-[#003527]">
-              {stats.totalPlotsCount.toLocaleString()}
-            </p>
-            <p className="text-xs text-emerald-600 font-medium">
-              ว่าง {stats.availablePlotsCount.toLocaleString()} หลุม
-            </p>
+        {/* Metric 1: ข้อมูลหลุมทั้งหมด */}
+        <div className="bg-white p-6 rounded-xl border border-[#eceeeb] shadow-sm flex items-center justify-between transition-all lg:col-span-2">
+          <div className="space-y-3 w-full">
+            <div>
+              <p className="text-sm font-semibold text-gray-500">ข้อมูลหลุมทั้งหมด</p>
+              <div className="flex items-baseline gap-1.5 mt-0.5">
+                <p className="text-3xl font-extrabold text-[#003527]">
+                  {stats.totalPlotsCount.toLocaleString()}
+                </p>
+                <span className="text-sm text-gray-500 font-medium">หลุม</span>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 pt-3 border-t border-gray-100">
+              <div className="flex items-center gap-2">
+                <div className="w-2.5 h-2.5 rounded-full bg-[#2b6954]" />
+                <div className="min-w-0">
+                  <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">ว่าง</p>
+                  <p className="text-sm font-extrabold text-gray-900">{(stats.plotStatusCounts?.available || 0).toLocaleString()}</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-2.5 h-2.5 rounded-full bg-[#ba1a1a]" />
+                <div className="min-w-0">
+                  <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">บรรจุแล้ว</p>
+                  <p className="text-sm font-extrabold text-gray-900">{(stats.plotStatusCounts?.occupied || 0).toLocaleString()}</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-2.5 h-2.5 rounded-full bg-[#eab308]" />
+                <div className="min-w-0">
+                  <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">จองแล้ว</p>
+                  <p className="text-sm font-extrabold text-gray-900">{(stats.plotStatusCounts?.reserved || 0).toLocaleString()}</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-2.5 h-2.5 rounded-full bg-[#71717a]" />
+                <div className="min-w-0">
+                  <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">หมดสัญญา</p>
+                  <p className="text-sm font-extrabold text-gray-900">{(stats.plotStatusCounts?.expired || 0).toLocaleString()}</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-2.5 h-2.5 rounded-full bg-gray-300 border border-gray-400" />
+                <div className="min-w-0">
+                  <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">ยกเว้น</p>
+                  <p className="text-sm font-extrabold text-gray-900">{(stats.plotStatusCounts?.exempt || 0).toLocaleString()}</p>
+                </div>
+              </div>
+            </div>
           </div>
-          <div className="w-12 h-12 rounded-lg bg-[#003527]/10 flex items-center justify-center text-[#003527]">
+          <div className="w-12 h-12 rounded-lg bg-[#003527]/10 flex items-center justify-center text-[#003527] shrink-0 self-start">
             <Grid size={24} />
           </div>
         </div>
 
-        {/* Metric 2 */}
-        <div className="bg-white p-6 rounded-xl border border-[#eceeeb] shadow-sm flex items-center justify-between hover:shadow-md hover:border-gray-300 transition-all">
-          <div className="space-y-1">
-            <p className="text-sm font-semibold text-gray-500">สมาชิกสมาคม</p>
-            <p className="text-3xl font-extrabold text-gray-900">
-              {stats.associationMemberCount.toLocaleString()}
-            </p>
-            <p className="text-xs text-gray-400 font-medium">สมาชิกที่ลงทะเบียนไว้</p>
+        {/* Metric 2: ข้อมูลสมาชิก */}
+        <div className="bg-white p-6 rounded-xl border border-[#eceeeb] shadow-sm flex items-center justify-between transition-all lg:col-span-1">
+          <div className="space-y-3 w-full">
+            <div>
+              <p className="text-sm font-semibold text-gray-500">ข้อมูลผู้ลงทะเบียน</p>
+              <div className="flex items-baseline gap-1.5 mt-0.5">
+                <p className="text-3xl font-extrabold text-gray-900">
+                  {((stats.associationMemberCount || 0) + (stats.generalContactCount || 0)).toLocaleString()}
+                </p>
+                <span className="text-sm text-gray-500 font-medium">ราย</span>
+              </div>
+            </div>
+            <div className="flex gap-4 pt-3 border-t border-gray-100">
+              <div className="flex-1 col-span-1">
+                <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">สมาชิกสมาคม</p>
+                <p className="text-base font-extrabold text-gray-900">{(stats.associationMemberCount || 0).toLocaleString()}</p>
+              </div>
+              <div className="w-px bg-gray-100" />
+              <div className="flex-1 col-span-1">
+                <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">บุคคลทั่วไป</p>
+                <p className="text-base font-extrabold text-gray-900">{(stats.generalContactCount || 0).toLocaleString()}</p>
+              </div>
+            </div>
           </div>
-          <div className="w-12 h-12 rounded-lg bg-emerald-50 flex items-center justify-center text-emerald-600">
+          <div className="w-12 h-12 rounded-lg bg-emerald-50 flex items-center justify-center text-emerald-600 shrink-0 self-start">
             <Users size={24} />
           </div>
         </div>
-
-        {/* Metric 3 */}
-        <div className="bg-white p-6 rounded-xl border border-[#eceeeb] shadow-sm flex items-center justify-between hover:shadow-md hover:border-gray-300 transition-all">
-          <div className="space-y-1">
-            <p className="text-sm font-semibold text-gray-500">ผู้ติดต่อทั่วไป</p>
-            <p className="text-3xl font-extrabold text-gray-900">
-              {stats.generalContactCount.toLocaleString()}
-            </p>
-            <p className="text-xs text-gray-400 font-medium">ผู้ติดต่อภายนอก / ทั่วไป</p>
+        {/* Metric 3: จำนวนผู้ล่วงลับ */}
+        <div className="bg-white p-6 rounded-xl border border-[#eceeeb] shadow-sm flex items-center justify-between transition-all lg:col-span-1">
+          <div className="space-y-3 w-full">
+            <div>
+              <p className="text-sm font-semibold text-gray-500">จำนวนผู้ล่วงลับ</p>
+              <div className="flex items-baseline gap-1.5 mt-0.5">
+                <p className="text-3xl font-extrabold text-[#92400e]">
+                  {stats.deceasedCount.toLocaleString()}
+                </p>
+                <span className="text-sm text-gray-500 font-medium">ราย</span>
+              </div>
+            </div>
+            <div className="flex gap-4 pt-3 border-t border-gray-100">
+              <div className="flex-1 col-span-1">
+                <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">โลงศพ</p>
+                <p className="text-base font-extrabold text-gray-900">{(stats.deceasedCoffinCount || 0).toLocaleString()}</p>
+              </div>
+              <div className="w-px bg-gray-100" />
+              <div className="flex-1 col-span-1">
+                <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">อัฐิ</p>
+                <p className="text-base font-extrabold text-gray-900">{(stats.deceasedAshesCount || 0).toLocaleString()}</p>
+              </div>
+            </div>
           </div>
-          <div className="w-12 h-12 rounded-lg bg-blue-50 flex items-center justify-center text-blue-600">
-            <UserCheck size={24} />
-          </div>
-        </div>
-
-        {/* Metric 4 */}
-        <div className="bg-white p-6 rounded-xl border border-[#eceeeb] shadow-sm flex items-center justify-between hover:shadow-md hover:border-gray-300 transition-all">
-          <div className="space-y-1">
-            <p className="text-sm font-semibold text-gray-500">จำนวนผู้ล่วงลับ</p>
-            <p className="text-3xl font-extrabold text-[#92400e]">
-              {stats.deceasedCount.toLocaleString()}
-            </p>
-            <p className="text-xs text-[#b45309] font-medium">ผู้ล่วงลับบรรจุในสุสาน</p>
-          </div>
-          <div className="w-12 h-12 rounded-lg bg-amber-50 flex items-center justify-center text-amber-600">
-            {/* Custom tomb/deceased icon using simple divs or inline SVG if Skull not in Lucide, but Skull is standard */}
+          <div className="w-12 h-12 rounded-lg bg-amber-50 flex items-center justify-center text-amber-600 shrink-0 self-start">
             <span className="text-xl font-bold">☠</span>
           </div>
         </div>

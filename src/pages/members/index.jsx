@@ -99,7 +99,7 @@ const Members = () => {
     queryFn: async () => {
       if (!memberDetail?.fullName) return null;
       const params = new URLSearchParams();
-      params.append("search", memberDetail.fullName);
+      params.append("donorName", memberDetail.fullName);
       params.append("limit", 100);
       const res = await Get(`/donations?${params.toString()}`);
       return res.data;
