@@ -5,6 +5,7 @@ import dayjs from "dayjs";
 import html2canvas from "html2canvas";
 import { jsPDF } from "jspdf";
 import { toJpeg } from "html-to-image";
+import { sarabunFontCss } from "./sarabun-base64";
 
 // Helper สำหรับแปลงเลขเป็นคำอ่านภาษาไทย
 const toThaiBaht = (number) => {
@@ -491,12 +492,30 @@ export const ReceiptTemplate = ({ donation, society }) => {
         <div style={{ textAlign: "center", width: "260px" }}>
           <div
             style={{
+              position: "relative",
               borderBottom: "1px solid #111",
               width: "100%",
               height: "25px",
               marginBottom: "5px",
             }}
-          ></div>
+          >
+            {(society?.signatureUrl || society?.signature_url) && (
+              <img
+                src={society.signatureUrl || society.signature_url}
+                alt="Signature"
+                crossOrigin="anonymous"
+                style={{
+                  position: "absolute",
+                  bottom: "2px",
+                  left: "50%",
+                  transform: "translateX(-50%)",
+                  maxHeight: "50px",
+                  maxWidth: "100%",
+                  objectFit: "contain",
+                }}
+              />
+            )}
+          </div>
           <div style={{ fontSize: "13px", fontWeight: "bold" }}>
             ({" "}
             {society?.payee ||
@@ -610,15 +629,19 @@ export const generatePdf = async (iframe, dimensions, filename) => {
 
   // 1. Wait for iframe fonts to be completely ready
   try {
-    if (iframeDoc.fonts && iframeDoc.fonts.ready) {
-      await iframeDoc.fonts.ready;
+    if (iframeDoc.fonts) {
+      await iframeDoc.fonts.load("12px Sarabun");
+      await iframeDoc.fonts.load("bold 12px Sarabun");
+      if (iframeDoc.fonts.ready) {
+        await iframeDoc.fonts.ready;
+      }
     }
   } catch (err) {
     console.warn("Error waiting for iframe fonts ready:", err);
   }
 
   // Wait a small extra buffer to ensure layout settles
-  await new Promise((r) => setTimeout(r, 100));
+  await new Promise((r) => setTimeout(r, 250));
 
   // 2. Save original styling states so we can restore them later
   const origIframeWidth = iframe.style.width;
@@ -644,7 +667,7 @@ export const generatePdf = async (iframe, dimensions, filename) => {
   contentWrapper.style.width = "210mm";
 
   // Give the browser a frame to apply styles and recalculate layout
-  await new Promise((r) => setTimeout(r, 150));
+  await new Promise((r) => setTimeout(r, 200));
 
   try {
     // 4. Capture the content-wrapper using html-to-image's toJpeg
@@ -654,7 +677,7 @@ export const generatePdf = async (iframe, dimensions, filename) => {
       quality: 0.95,
       pixelRatio: 3, // High resolution (300 DPI equivalent)
       backgroundColor: "#ffffff",
-      fontEmbedCSS: `@import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;600;700&display=swap');`,
+      fontEmbedCSS: sarabunFontCss,
     });
 
     // 5. Restore original styles

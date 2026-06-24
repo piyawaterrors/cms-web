@@ -372,7 +372,7 @@ const Members = () => {
                       </div>
                     </td>
                     <td className="px-6 py-4 text-sm text-[#333] text-center">
-                      {member.plot ? (
+                      {member.contracts?.length ? (
                         <div className="space-y-1.5 ">
                           <span>{member.contracts?.length}</span>
                         </div>
