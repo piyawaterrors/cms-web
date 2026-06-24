@@ -85,8 +85,8 @@ const SocietyConfig = () => {
     setIsUploadingSignature(true);
     try {
       const res = await Post("/society/upload-signature", data);
-      if (res.url) {
-        setFormData((prev) => ({ ...prev, signatureUrl: res.url }));
+      if (res.data?.url) {
+        setFormData((prev) => ({ ...prev, signatureUrl: res.data.url }));
         addToast("อัปโหลดลายเซ็นสำเร็จ", "success");
       }
     } catch (error) {

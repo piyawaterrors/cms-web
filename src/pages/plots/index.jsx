@@ -122,11 +122,16 @@ const Plots = () => {
     relocationMutation.mutate({
       deceasedId: selectedOccupant.id,
       fromPlotId: selectedPlot.id,
-      toPlotId: relocationForm.type === "external" ? null : relocationForm.toPlotId,
-      note: relocationForm.type === "external"
-        ? `[ย้ายออกภายนอกสมาคม] ${relocationForm.note || ""}`
-        : relocationForm.note,
-      burialType: relocationForm.type === "external" ? undefined : relocationForm.burialType,
+      toPlotId:
+        relocationForm.type === "external" ? null : relocationForm.toPlotId,
+      note:
+        relocationForm.type === "external"
+          ? `[ย้ายออกภายนอกสมาคม] ${relocationForm.note || ""}`
+          : relocationForm.note,
+      burialType:
+        relocationForm.type === "external"
+          ? undefined
+          : relocationForm.burialType,
     });
   };
 
@@ -182,6 +187,12 @@ const Plots = () => {
       setShowPlotModal(false);
       addToast("อัปเดตข้อมูลเรียบร้อยแล้ว", "success");
     },
+    onError: (err) => {
+      addToast(
+        err.response?.data?.message || "เกิดข้อผิดพลาดในการอัปเดตข้อมูล",
+        "error",
+      );
+    },
   });
 
   const createPlotMutation = useMutation({
@@ -191,6 +202,12 @@ const Plots = () => {
       addToast("สร้างหลุมเรียบร้อยแล้ว", "success");
       setShowPlotModal(false);
     },
+    onError: (err) => {
+      addToast(
+        err.response?.data?.message || "เกิดข้อผิดพลาดในการสร้างหลุม",
+        "error",
+      );
+    },
   });
 
   const deletePlotMutation = useMutation({
@@ -199,6 +216,12 @@ const Plots = () => {
       queryClient.invalidateQueries(["plots"]);
       addToast("ลบหลุมเรียบร้อยแล้ว", "info");
       setShowPlotModal(false);
+    },
+    onError: (err) => {
+      addToast(
+        err.response?.data?.message || "เกิดข้อผิดพลาดในการลบหลุม",
+        "error",
+      );
     },
   });
 
@@ -395,9 +418,7 @@ const Plots = () => {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 z-20">
         <div className="flex items-center gap-4">
           <div>
-            <h1 className="text-3xl font-bold text-[#111]">
-              ผังหลุม
-            </h1>
+            <h1 className="text-3xl font-bold text-[#111]">ผังหลุม</h1>
             <p className="text-base text-[#555]">
               จัดการและตรวจสอบสถานะหลุมบนแผนที่
             </p>
@@ -551,7 +572,11 @@ const Plots = () => {
                   y={1}
                   width={plot.colSpan * GRID_SIZE - 2}
                   height={plot.rowSpan * GRID_SIZE - 2}
-                  fill={plot.type === "walkway" ? "#ffffff" : getStatusColor(plot.status)}
+                  fill={
+                    plot.type === "walkway"
+                      ? "#ffffff"
+                      : getStatusColor(plot.status)
+                  }
                   cornerRadius={4}
                   stroke={
                     selectedPlot?.id === plot.id ? "#003527" : "transparent"
@@ -709,14 +734,16 @@ const Plots = () => {
                       }}
                     />
                     <span className="text-sm font-bold text-[#111]">
-                      {plotStatuses.find((s) => s.key === plotForm.status)?.label ||
-                        ({
+                      {plotStatuses.find((s) => s.key === plotForm.status)
+                        ?.label ||
+                        {
                           available: "ว่าง",
                           occupied: "บรรจุแล้ว",
                           reserved: "จองแล้ว",
                           expired: "หมดสัญญา",
                           common: "หลุมรวม",
-                        }[plotForm.status] || plotForm.status)}
+                        }[plotForm.status] ||
+                        plotForm.status}
                     </span>
                   </div>
                 </div>
@@ -744,6 +771,9 @@ const Plots = () => {
                   if (plotForm.id) updatePlotMutation.mutate(plotForm);
                   else createPlotMutation.mutate(plotForm);
                 }}
+                loading={
+                  updatePlotMutation.isPending || createPlotMutation.isPending
+                }
               >
                 บันทึกข้อมูล
               </Button>
@@ -852,7 +882,10 @@ const Plots = () => {
                       }
                       options={allPlots
                         .filter(
-                          (p) => p.type === "plot" && (p.status === "available" || p.id === selectedPlot?.id),
+                          (p) =>
+                            p.type === "plot" &&
+                            (p.status === "available" ||
+                              p.id === selectedPlot?.id),
                         )
                         .map((p) => ({
                           label: `${p.plotNumber} (ซอย ${p.zone})`,
@@ -866,7 +899,10 @@ const Plots = () => {
                     <Select
                       value={relocationForm.burialType}
                       onChange={(val) =>
-                        setRelocationForm({ ...relocationForm, burialType: val })
+                        setRelocationForm({
+                          ...relocationForm,
+                          burialType: val,
+                        })
                       }
                       options={[
                         { label: "โลงศพ", value: "coffin" },
@@ -1018,7 +1054,9 @@ const QuickViewModal = ({ id, onClose, onEdit, onRelocate }) => {
                       </p>
                       <p className="text-xl font-bold">
                         {plot?.contracts?.[0]?.startDate
-                          ? dayjs(plot.contracts[0].startDate).add(543, "year").format("DD/MM/YYYY")
+                          ? dayjs(plot.contracts[0].startDate)
+                              .add(543, "year")
+                              .format("DD/MM/YYYY")
                           : "-"}
                       </p>
                     </div>
@@ -1028,7 +1066,9 @@ const QuickViewModal = ({ id, onClose, onEdit, onRelocate }) => {
                       </p>
                       <p className="text-xl font-bold">
                         {plot?.contracts?.[0]?.endDate
-                          ? dayjs(plot.contracts[0].endDate).add(543, "year").format("DD/MM/YYYY")
+                          ? dayjs(plot.contracts[0].endDate)
+                              .add(543, "year")
+                              .format("DD/MM/YYYY")
                           : "-"}
                       </p>
                     </div>
